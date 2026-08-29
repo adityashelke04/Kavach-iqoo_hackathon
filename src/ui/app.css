@@ -1716,3 +1716,386 @@
 .privacy-line--offline .privacy-line__text {
   color: var(--text);
 }
+
+/* ==========================================================================
+   Report handoff — §10.6, D16
+   Tokens only. No number about the message appears anywhere in this block;
+   the report gate and the DOM assertion in the mobile gate both guard it.
+   ========================================================================== */
+
+/* --- the report action on Verdict ---------------------------------------- */
+.btn--report {
+  margin-top: var(--sp-4);
+  background: var(--surface-2);
+  border-color: var(--danger-border);
+  color: var(--text);
+}
+
+.btn--report:not(:disabled):active {
+  background: var(--surface-3);
+}
+
+/* --- the one question ----------------------------------------------------- */
+.disclose__title {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--lh-snug);
+}
+
+.disclose__sub {
+  margin: 0 0 var(--sp-5);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.disclose__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.disclose__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sp-4);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.disclose__option:active {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.disclose__option-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.disclose__option-sub {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+/* --- do this now ---------------------------------------------------------- */
+/* Above the receipt on purpose: the paperwork is not the urgent part when
+   money is already moving (D16). */
+.urgent {
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4);
+  background: var(--danger-tint);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--r-md);
+}
+
+.urgent__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--tracking-tight);
+  color: var(--danger-on-tint);
+}
+
+.urgent__sub {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.urgent__steps {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+/* --- the receipt ---------------------------------------------------------- */
+/* Shaped like a document rather than another app screen: a formal record is
+   what a person takes to an authority (D16). */
+.receipt {
+  padding: var(--sp-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+}
+
+.receipt__masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px dashed var(--border-strong);
+}
+
+.receipt__brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.receipt__brand-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.receipt__brand-sub {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.receipt__meta {
+  margin: 0;
+  flex: none;
+  text-align: right;
+}
+
+.receipt__meta-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.receipt__meta-row + .receipt__meta-row {
+  margin-top: var(--sp-2);
+}
+
+.receipt__meta dt {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.receipt__meta dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.receipt__verdict {
+  margin: var(--sp-4) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--lh-snug);
+}
+
+.receipt--danger .receipt__verdict {
+  color: var(--danger-accent);
+}
+
+.receipt--caution .receipt__verdict {
+  color: var(--caution-accent);
+}
+
+.receipt__section {
+  margin-top: var(--sp-5);
+}
+
+.receipt__section-title {
+  margin: 0 0 var(--sp-3);
+  font-size: 0.6875rem;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.receipt__rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Line items, ruled like a statement. A row only ever exists for a field that
+   was actually populated — never a placeholder (D16). */
+.receipt__row {
+  display: flex;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.receipt__row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.receipt__row-label {
+  flex: none;
+  width: 7.5rem;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.receipt__row-value {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.receipt__message {
+  margin: 0;
+  padding: var(--sp-4);
+  background: var(--bg);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.receipt__want {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.receipt__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px dashed var(--border-strong);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-faint);
+}
+
+/* --- where to report it --------------------------------------------------- */
+.routes {
+  margin-top: var(--sp-6);
+}
+
+.routes__title {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.routes__offline {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.routes__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* A link rather than a button, so a long-press offers "copy link" and the user
+   can see where they are being sent before they go. */
+.route {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 44px;
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.route:active {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.route--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.route__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.route__name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.route__operator {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.route__purpose {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.route__expect {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-faint);
+}
+
+.route__action {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--heat);
+}
+
+.route__action-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

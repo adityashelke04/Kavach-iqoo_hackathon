@@ -186,6 +186,48 @@ try {
   /* 5 - and the message is still highlighted -------------------------------- */
   const marks = await page.$$eval('mark', (els) => els.length)
   check('evidence is highlighted offline', marks > 0, `${marks} spans`)
+
+  /* 6 - the report handoff builds with no network (D16) --------------------- */
+  // The receipt and the complaint text are composed on the device from a result
+  // already in memory, so the whole handoff has to survive airplane mode. Only
+  // opening a portal needs a network, and the sheet says so rather than
+  // offering a tap that does nothing.
+  console.log(`\n${bold('Report handoff, offline')}`)
+  const reportBtn = await page.$('.btn--report')
+  check('a scam verdict offers the report', reportBtn !== null)
+
+  if (reportBtn) {
+    await reportBtn.click()
+    await page.waitForSelector('.disclose__options', { timeout: 10000 })
+    await page.click('.disclose__option')
+    await page.waitForSelector('.receipt', { timeout: 10000 })
+
+    check('the receipt builds with no network', true)
+    check(
+      'the message is on the receipt verbatim',
+      ((await page.textContent('.receipt__message')) ?? '').trim() === SCAM,
+    )
+    check(
+      'the urgent steps lead when money has gone',
+      (await page.$('.urgent__steps')) !== null,
+    )
+    check(
+      'official destinations are listed',
+      (await page.$$eval('.route__name', (els) => els.length)) > 0,
+      (await page.$$eval('.route__name', (els) => els.map((e) => e.textContent).join(' · '))),
+    )
+    check(
+      'every destination is a tel: or a .gov.in link',
+      await page.$$eval('.route', (els) =>
+        els.every((e) => {
+          const h = e.getAttribute('href') ?? ''
+          return h === '' || /^tel:\d+$/.test(h) || /^https:\/\/[^/]*\.gov\.in(\/|$)/.test(h)
+        }),
+      ),
+    )
+    const reportBody = (await page.textContent('body')) ?? ''
+    check('still no percentage on the receipt (§4)', !/\d+\s?%/.test(reportBody))
+  }
 } catch (err) {
   console.error(red(`\nthrew: ${err.message}`))
   failures++

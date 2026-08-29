@@ -3,6 +3,7 @@ import { useRoute } from './router'
 import { Home } from './screens/Home'
 import { Check } from './screens/Check'
 import { Verdict } from './screens/Verdict'
+import { Report } from './screens/Report'
 import { Listen } from './screens/Listen'
 import { Probe } from './dev/Probe'
 import { Engines } from './dev/Engines'
@@ -85,17 +86,28 @@ export default function App() {
   if (path === '/listen')
     return <Listen onBack={() => navigate('/')} enginePreference={enginePreference} />
 
-  if (path === '/result') {
+  if (path === '/result' || path === '/report') {
     // Deep-linking straight to /result (or a reload) has nothing to show, so
     // fall back to the sample rather than a blank screen.
     const activeResult =
       result ??
       analyzeWithRules({ text: DEFAULT_SAMPLE_TEXT, sender: DEFAULT_SAMPLE_SENDER })
+    const activeText = analysed || DEFAULT_SAMPLE_TEXT
+
+    // The report is built from the same two values the Verdict screen already
+    // holds, so nothing is stored and §2's no-archive stance is untouched (D16).
+    // Back from here returns to the verdict rather than to Home, which is what
+    // Android's back button should do from a screen you opened off it.
+    if (path === '/report') {
+      return (
+        <Report result={activeResult} text={activeText} onBack={() => navigate('/result')} />
+      )
+    }
 
     return (
       <Verdict
         result={activeResult}
-        text={analysed || DEFAULT_SAMPLE_TEXT}
+        text={activeText}
         onBack={() => {
           runId.current++
           navigate('/')
@@ -104,6 +116,7 @@ export default function App() {
           runId.current++
           navigate('/check')
         }}
+        onReport={() => navigate('/report')}
       />
     )
   }

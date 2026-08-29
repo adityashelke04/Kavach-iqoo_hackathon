@@ -184,6 +184,7 @@ the MVP column is not fully green, do not build it.
 | PWA install + offline operation | The airplane-mode demo beat depends on it. |
 | Listen mode | Chosen as MVP (D3). Timeboxed with a kill-criterion (§11). |
 | Triple-tap failsafe | Insurance against a live failure on stage. |
+| Report handoff (D16) | A caught scam has to end somewhere. Kavach writes the complaint on the device and opens the right official portal — 1930, Chakshu, or 1909 — chosen by what has already been sent. It never submits anything, so §2's constraints hold. See §10.6. |
 
 ### Stretch — only once every MVP row is green
 
@@ -1690,6 +1691,45 @@ no-sender-supplied (SenderCard omitted).
 
 ---
 
+#### Report — `src/screens/Report.tsx` (D16)
+
+**Purpose:** turn a verdict into a filed complaint. Reached only from a `danger`
+or `caution` verdict, never from `safe`.
+
+**Anatomy, in order:**
+1. **The question** — *has anything already been sent?* Four answers: money;
+   a code, password or card detail; nothing yet; it is only nuisance marketing.
+   Nothing below renders until one is chosen, because the answer changes both
+   the urgency block and the destinations.
+2. **Do this now** — only when something has already been sent. Four ordered
+   sentences (D16). Sits *above* the receipt: the paperwork is not the urgent
+   part.
+3. **The Evidence Receipt** — masthead (`KAVACH · INCIDENT RECORD`, local
+   reference, date, time), the verdict strip, the findings as line-item rows,
+   the message verbatim in a monospaced block, and the `nextMove` sentence.
+4. **Where to report** — one card per destination for the chosen answer, each
+   with its real name, one line on what it is for, and a `tel:` or `https:`
+   action.
+5. **Actions** — Copy the complaint (primary), Share (Web Share API).
+
+**Rules:**
+- **No total.** §4 at full strength: no tactic count, no severity, no rating,
+  no meter (D16 explains why this surface is the one most likely to grow one).
+- **Nothing invented.** A line only renders for a field that was actually
+  populated. No sender supplied means no sender row.
+- **Never submits.** Every action is a copy, a share, a dial, or a link out.
+- **Offline:** the receipt and the complaint text build with no network. The
+  portal links do not, so with no signal the sheet says so in one line and
+  Copy becomes the emphasised action.
+
+**States:** unanswered · money-sent · credentials-shared · nothing-sent ·
+nuisance · offline (any of the above, links de-emphasised).
+
+**Pattern:** a document, not an app screen. Closest reference is a statement or
+an official notice.
+
+---
+
 #### Listen — `src/screens/Listen.tsx`
 
 **Purpose:** run the same detector against a live speakerphone conversation.
@@ -2961,6 +3001,90 @@ performed by a model (D9).
 - This lands inside the still-open P7 (LocalDetector) and P10 (orchestrator
   hardening) phases in §11, and amends the already-shipped P3/P6 work. It is
   not a new phase number.
+
+---
+
+### 2026-08-30 — D16 · Kavach is a courier, not a reporting portal
+
+**D16 · A caught scam ends in a handed-over complaint, not a dead end.**
+
+The Verdict screen said *this is a scam*, proved it, named what the sender
+wanted — and then offered "Check another message". A person who has just been
+told they are being defrauded, and who in the worst case has already sent the
+money, was handed nothing to do about it.
+
+India has the machinery for this and it is barely used, because the machinery is
+a blank government form and the person facing it is frightened, in a hurry, and
+does not know which of four portals is theirs. Choosing correctly between 1930,
+the National Cyber Crime Reporting Portal, Chakshu on Sanchar Saathi, and TRAI's
+1909 is not a thing to ask of someone in the worst ten minutes of their year.
+
+**Why this does not contradict §2.** §2 names "a fraud reporting portal — no
+backend, no accounts, no submissions" as an explicit non-goal, and this feature
+honours every clause of it:
+
+- **No backend.** The report is composed in the browser from a `DetectionResult`
+  already in memory.
+- **No accounts.** There is nothing to sign into.
+- **No submissions.** Kavach never sends a complaint anywhere. It writes one,
+  puts it on the clipboard, and opens the official portal. The user files it
+  themselves, on the government's own site, in their own session.
+
+**Kavach is not a reporting portal. It is a courier.** A later session that adds
+a submit button has not extended this feature, it has replaced it with a
+different product needing a backend, a privacy model and a consent flow that this
+one deliberately does not have.
+
+**The receipt is shaped like a document on purpose.** A formal record is what a
+person takes to an authority, and looking official is a large part of what makes
+someone act rather than close the app. The layout borrows from a statement or a
+notice rather than from another app screen.
+
+**Which forces one rule harder than anywhere else in this spec.** A document laid
+out like a bill invites a total, and there must not be one. §4 applies here at
+full strength and then some: no count of tactics found — "3 findings" is
+"4 of 5 signals" wearing a hat — no severity, no rating, no risk level, no meter.
+
+The numbers that *are* permitted, and why they are a different kind of thing: the
+date, the time and the local reference are facts about the record, not judgments
+of the message. An amount of money is a fact the **user** supplied about their
+own loss; the portals require it, and it says nothing about how suspicious we
+found the text. The §12 gate enforces the line by asserting no percentage and no
+bare tactic count anywhere in a built report.
+
+**Routing is by what has already happened, not by how bad the message is.** One
+plain question — has anything already been sent? — because the correct
+destination genuinely differs, and getting it wrong wastes the only hour that
+matters. Money gone, or a code shared, routes to 1930 by phone first, since a
+call reaches a human faster than a form. The message alone routes to Chakshu,
+which is the facility actually built for reporting a suspected fraud SMS or call.
+Nuisance marketing routes to 1909, because filing it as cybercrime helps nobody.
+
+**Destinations live in one file as data** (`src/report/routes.ts`). A government
+URL that changes is then a one-line edit rather than a hunt.
+
+**Damage control comes before the paperwork.** When something has already been
+sent, the sheet leads with four ordered sentences — stop replying, call 1930,
+call the bank on the number printed on the card and never one from the message,
+then file the written complaint. This is the highest-stakes surface in the
+product, and naming the specific action beats naming the feeling.
+
+**It works offline.** The receipt and the complaint text are built entirely on
+the device, so they survive airplane mode — which matters, because §13 beat 4 is
+exactly that. Opening a portal obviously does not, so with no network the sheet
+says so in one line and promotes Copy over the links: a clipboard survives until
+there is signal.
+
+**Explicitly not built, and not to be added without another entry here:** no
+auto-submission, no filling in a form on a government site, no account, no case
+tracking, no stored history, and no report offered on a `safe` verdict — you do
+not report a legitimate message, and offering to would undermine the
+discrimination this product is judged on.
+
+**Scope:** this adds a row to §3's MVP table, a Report screen to §10.6, copy keys
+to §10.7 and a `test:report` gate to §12. It adds nothing to `src/detector/**`
+and changes no engine, no prompt and no term list. The full design is in
+`docs/superpowers/specs/2026-08-30-report-handoff-design.md`.
 
 ---
 

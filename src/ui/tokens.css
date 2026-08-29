@@ -39,6 +39,9 @@
    * the verdict headline, and degrades to the same stack if it never arrives. */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-display: 'Archivo', system-ui, -apple-system, Roboto, sans-serif;
+  /* Evidence set in the report receipt (§10.6, D16). A quoted message reads
+     as evidence rather than as prose when it is not set in the body face. */
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
 
   /* ---- ground & surfaces ----
    * A four-step ladder. Each step is a real elevation, not a shade. */

@@ -51,6 +51,9 @@ const SCREENS = [
   ['2_check', '/check'],
   ['3_verdict', '/result'],
   ['4_listen', '/listen'],
+  // The report opens on its one question; the receipt below it is reached by
+  // answering, which the flow at the end of this file drives (D16).
+  ['5_report_ask', '/report'],
 ]
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -363,6 +366,71 @@ for (const [name, example, expect] of FLOWS) {
   writeFileSync(join(shots, `mobile_${name}${suffix}.png`), Buffer.from(shot.data, 'base64'))
 }
 
+
+/* -- the report receipt, reached by answering the question (D16) ------------ */
+// The receipt is the densest thing in the app — a masthead with two columns,
+// ruled line items and a monospaced message block — so it is the most likely
+// screen to overflow 412px. It only exists after an answer, hence its own pass.
+for (const [name, answer] of [
+  ['7_report_money', 'Money has already gone'],
+  ['8_report_nothing', 'Nothing — it is just the message'],
+]) {
+  const loaded = cdp.once('Page.loadEventFired')
+  await cdp.send('Page.navigate', { url: `http://127.0.0.1:${PORT}/report` }, sessionId)
+  await loaded
+  await wait(500)
+
+  const clicked = await cdp.send(
+    'Runtime.evaluate',
+    { expression: clickByText(answer), returnByValue: true },
+    sessionId,
+  )
+  const label = name.replace(/^\d_/, '')
+
+  if (clicked.result.value === 'missing') {
+    failures++
+    console.log(red(`  x ${label}: could not find the answer "${answer}"`))
+    continue
+  }
+  await wait(600)
+
+  const { result } = await cdp.send(
+    'Runtime.evaluate',
+    { expression: PROBE, returnByValue: true },
+    sessionId,
+  )
+  const probe = JSON.parse(result.value)
+
+  if (probe.scrollWidth > probe.clientWidth || probe.overflow.length) {
+    failures++
+    console.log(red(`  x ${label}`) + `  viewport ${probe.clientWidth}  scrollWidth ${probe.scrollWidth}`)
+    for (const o of probe.overflow) {
+      console.log(`      overflows: <${o.tag} class="${o.cls}"> right=${o.right}`)
+    }
+  } else {
+    console.log(green(`  ok ${label}`) + `  receipt fits at ${probe.clientWidth}px`)
+  }
+
+  if (probe.smallTargets.length) {
+    failures++
+    for (const t of probe.smallTargets) {
+      console.log(red(`      tap target ${t.h}px < 44 — <${t.tag} class="${t.cls}">`))
+    }
+  }
+
+  // §4 holds on the surface most likely to grow a total (D16).
+  if (probe.percentText.length) {
+    failures++
+    console.log(red(`      percentage rendered (§4 violation): ${probe.percentText.join(', ')}`))
+  }
+
+  const shot = await cdp.send(
+    'Page.captureScreenshot',
+    { format: 'png', captureBeyondViewport: false },
+    sessionId,
+  )
+  writeFileSync(join(shots, `mobile_${name}${suffix}.png`), Buffer.from(shot.data, 'base64'))
+}
 
 console.log(
   failures === 0

@@ -62,6 +62,8 @@ npm run test:corpus   # corpus regression + false-positive gate (hard gate)
 npm run test:smoke    # renders every screen against real engine output
 npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
 npm run test:feedback # adaptive weighting, and that it cannot break the gate (D14)
+npm run test:report   # report handoff: no total, nothing invented, every
+                      # destination official and reachable-shaped (D16)
 npm run test:offline  # PWA: manifest installable, every icon really served,
                       # worker takes control, and a cold launch with the network
                       # cut still reaches a correct verdict (P8)
@@ -83,6 +85,10 @@ Dev-only routes: `/dev/ui` (primitive gallery), `/dev/engines` (raw engine outpu
 
 Rules engine, all four screens, and Listen mode are done and pass every gate.
 The UI was rebuilt against D11 — read that entry before changing any copy.
+The report handoff (D16) is built: a caught scam now ends in a complaint the
+user files themselves on 1930 / Chakshu / 1909. Kavach never submits anything —
+read D16 before touching it, especially before adding a submit button or a
+count of findings to the receipt.
 
 P3 (CloudDetector) is done. P8 (PWA + offline) is built and passes
 `test:offline`, but like P2 and P7 it is **unverified on the phone** — all three

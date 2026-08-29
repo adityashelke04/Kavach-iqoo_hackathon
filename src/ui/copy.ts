@@ -120,6 +120,47 @@ export const copy = {
   engine_cloud_note: 'Faster on older phones. Your message is sent to be analysed.',
   cloud_unavailable: 'No connection — checking on your phone instead',
 
+  // --- Report handoff (§10.6, D16) -----------------------------------------
+  // The register here is deliberately a shade more formal than the rest of the
+  // app: this screen is a document a person takes to an authority, and looking
+  // official is most of what makes someone act on it. It stays plain — formal
+  // is not the same as technical, and D11 still rules out jargon.
+  report_cta: 'Report this message',
+  report_title: 'Report it',
+  report_q_title: 'Has anything already been sent?',
+  report_q_sub: 'Your answer decides where this should go — and how fast.',
+  report_a_money: 'Money has already gone',
+  report_a_money_sub: 'A transfer, a UPI payment, a card charge',
+  report_a_credentials: 'I gave them a code or a password',
+  report_a_credentials_sub: 'An OTP, a PIN, card details — but no money yet',
+  report_a_nothing: 'Nothing — it is just the message',
+  report_a_nothing_sub: 'You have not replied or sent anything',
+  report_a_nuisance: 'It is only unwanted marketing',
+  report_a_nuisance_sub: 'Annoying, but nobody is trying to defraud you',
+  report_change_answer: 'Change my answer',
+
+  report_urgent_title: 'Do this now',
+  report_urgent_sub: 'In this order. The first few minutes matter most.',
+
+  report_masthead: 'Kavach',
+  report_masthead_sub: 'Record of a suspicious message',
+  report_ref: 'Reference',
+  report_prepared: 'Prepared',
+  report_findings_title: 'What we found',
+  report_message_title: 'The message, exactly as you received it',
+  report_want_title: 'What they were trying to get',
+  report_footer: 'Prepared on this phone. Nothing was sent anywhere.',
+
+  report_routes_title: 'Where to report it',
+  report_expect: 'What happens there',
+  report_call: 'Call',
+  report_open: 'Open',
+  report_copy: 'Copy the complaint',
+  report_copied: 'Copied — paste it on the portal',
+  report_share: 'Share',
+  report_offline:
+    'No signal, so these links will not open yet. Copy the complaint now — it stays on your clipboard until you are back online.',
+
   // --- Listen --------------------------------------------------------------
   listen_title: 'Listen to a call',
   listen_prime: 'Put the call on speaker. Kavach will listen and warn you.',

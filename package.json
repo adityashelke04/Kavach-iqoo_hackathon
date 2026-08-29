@@ -14,7 +14,8 @@
     "test:fusion": "node scripts/test-fusion.mjs",
     "test:feedback": "node scripts/test-feedback.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "test:offline": "node scripts/test-offline.mjs"
+    "test:offline": "node scripts/test-offline.mjs",
+    "test:report": "node scripts/test-report.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",

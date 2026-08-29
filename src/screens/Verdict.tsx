@@ -3,7 +3,7 @@ import type { DetectionResult } from '../detector/types.ts'
 import { Findings, VerdictBanner } from '../ui/components/index.tsx'
 import { copy, TACTIC_LABELS } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
-import { IconCopy, IconCheck, IconShare } from '../ui/icons.tsx'
+import { IconCopy, IconCheck, IconShare, IconFlag } from '../ui/icons.tsx'
 
 /**
  * Verdict — SPEC.md §10.6.
@@ -17,11 +17,14 @@ export function Verdict({
   text,
   onAgain,
   onBack,
+  onReport,
 }: {
   result: DetectionResult
   text: string
   onAgain: () => void
   onBack?: () => void
+  /** Absent, or unused on a `safe` verdict — see the report action below. */
+  onReport?: () => void
 }) {
   const bannerRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
@@ -97,6 +100,16 @@ export function Verdict({
             <span>{copy.cta_share}</span>
           </button>
         </div>
+
+        {/* Never offered on a `safe` verdict: you do not report a legitimate
+            message, and offering to would undermine the discrimination this
+            product is judged on (D16). */}
+        {onReport && result.verdict !== 'safe' && (
+          <button type="button" className="btn btn--report" onClick={onReport}>
+            <IconFlag size={18} aria-hidden="true" />
+            <span>{copy.report_cta}</span>
+          </button>
+        )}
       </div>
 
       <div className="screen__footer">
