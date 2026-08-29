@@ -6,16 +6,13 @@ import {
   IconChevronRight,
   IconLock,
 } from '../ui/icons.tsx'
+import { DeviceTelemetryPanel } from '../ui/components/index.tsx'
 
 /**
- * Home — SPEC.md §10.6.
+ * Home — SPEC.md §10.6, §9b.
  *
- * Two actions and one claim. An earlier version carried a four-card "defense
- * architecture" grid below the fold, which restated the privacy line in
- * different words and pushed both real actions out of comfortable thumb reach
- * on a 412px screen. What the product does on this screen is let someone start;
- * the architecture story is earned on the verdict screen, under "How we
- * checked", where there is something concrete to attach it to.
+ * Two actions, the privacy claim, and the collapsible "Running on this device"
+ * telemetry panel.
  */
 export function Home({
   onCheck,
@@ -62,6 +59,10 @@ export function Home({
             <IconLock size={18} />
           </span>
           <p className="privacy-line__text">{copy.home_privacy}</p>
+        </div>
+
+        <div style={{ marginTop: 'var(--sp-4)' }}>
+          <DeviceTelemetryPanel />
         </div>
       </div>
     </main>

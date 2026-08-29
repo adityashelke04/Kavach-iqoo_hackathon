@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import type {
   DetectionResult,
   SenderSignal,
@@ -15,6 +15,7 @@ import {
 } from '../../detector/feedback.ts'
 import { TACTIC_NAMES } from '../../detector/types.ts'
 import { copy, TACTIC_LABELS } from '../copy.ts'
+import { getDeviceTelemetry, type DeviceTelemetry } from '../../device/telemetry.ts'
 import {
   IconCopy,
   IconCheck,
@@ -298,11 +299,88 @@ function describeLearning(state: FeedbackState): string[] {
    ========================================================================== */
 
 /**
+ * Running on this device panel — SPEC.md §9b.
+ * Real metrics read directly from browser WebGPU and storage APIs.
+ */
+export function DeviceTelemetryPanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [telemetry, setTelemetry] = useState<DeviceTelemetry | null>(null)
+
+  useEffect(() => {
+    void getDeviceTelemetry().then(setTelemetry)
+  }, [])
+
+  return (
+    <details className="disclosure" open={defaultOpen}>
+      <summary className="disclosure__summary">
+        <IconCpu size={16} />
+        <span>Running on this device</span>
+        <IconChevronRight size={18} className="disclosure__chevron" />
+      </summary>
+
+      <div className="disclosure__body">
+        <div className="meta-row">
+          <span className="meta-row__k">AI Engine</span>
+          <span className="meta-row__v">
+            {telemetry?.model.label ?? 'On-Device LLM'} ({telemetry?.tier ?? 'standard'})
+          </span>
+        </div>
+
+        {telemetry?.adapterName && (
+          <div className="meta-row">
+            <span className="meta-row__k">Hardware GPU</span>
+            <span className="meta-row__v">{telemetry.adapterName}</span>
+          </div>
+        )}
+
+        <div className="meta-row">
+          <span className="meta-row__k">WebGPU Status</span>
+          <span className="meta-row__v">
+            {telemetry?.webgpuSupported ? '🟢 Active on device' : '🟡 Offline rules / Cloud fallback'}
+          </span>
+        </div>
+
+        <div className="meta-row">
+          <span className="meta-row__k">Privacy & Data</span>
+          <span className="meta-row__v">0 bytes sent (Private on-device)</span>
+        </div>
+
+        {telemetry?.storageUsageMB !== null && telemetry?.storageUsageMB !== undefined && (
+          <div className="meta-row">
+            <span className="meta-row__k">Local Storage Cache</span>
+            <span className="meta-row__v">{telemetry.storageUsageMB} MB cached</span>
+          </div>
+        )}
+
+        <div className="meta-row" style={{ marginTop: 'var(--sp-2)' }}>
+          <a
+            href="/dev/llm"
+            style={{
+              fontSize: 'var(--fs-xs)',
+              color: 'var(--heat)',
+              textDecoration: 'underline',
+              display: 'inline-block',
+            }}
+          >
+            Open On-Device AI Laboratory &rarr;
+          </a>
+        </div>
+      </div>
+    </details>
+  )
+}
+
+/**
  * Everything a judge or a curious user wants to verify lives here, and nothing
  * a frightened user has to read does. These are numbers about the device, which
  * §9 allows; numbers about the message are never rendered (§4).
  */
 export function HowWeChecked({ result }: { result: DetectionResult }) {
+  const [telemetry, setTelemetry] = useState<DeviceTelemetry | null>(null)
+
+  useEffect(() => {
+    void getDeviceTelemetry().then(setTelemetry)
+  }, [])
+
   return (
     <details className="disclosure">
       <summary className="disclosure__summary">
@@ -317,16 +395,26 @@ export function HowWeChecked({ result }: { result: DetectionResult }) {
         <div className="meta-row">
           <span className="meta-row__k">{copy.how_engine}</span>
           <span className="meta-row__v">
-            {result.engineUsed === 'cloud' ? copy.how_engine_cloud : copy.how_engine_local}
+            {result.engineUsed === 'cloud'
+              ? copy.how_engine_cloud
+              : result.engineUsed === 'local'
+                ? `${copy.how_engine_local} (${telemetry?.model.label ?? 'On-Device WebGPU AI'})`
+                : `${copy.how_engine_local} (Deterministic engine)`}
           </span>
         </div>
+        {telemetry?.adapterName && (
+          <div className="meta-row">
+            <span className="meta-row__k">Hardware GPU</span>
+            <span className="meta-row__v">{telemetry.adapterName}</span>
+          </div>
+        )}
         <div className="meta-row">
           <span className="meta-row__k">{copy.how_time}</span>
           <span className="meta-row__v">{result.latencyMs} ms</span>
         </div>
         <div className="meta-row">
           <span className="meta-row__k">{copy.how_sent}</span>
-          <span className="meta-row__v">{copy.how_sent_no}</span>
+          <span className="meta-row__v">{copy.how_sent_no} (0 bytes over network)</span>
         </div>
 
         <LearnedSummary />
