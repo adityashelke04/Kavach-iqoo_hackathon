@@ -1859,7 +1859,7 @@ engines are never on the critical path to *having something to show*.
 
 ---
 
-### ☐ P2 — WebLLM spike · ~45m · **go/no-go for the whole pitch**
+### ☐ P2 — WebLLM spike · ~45m · **go/no-go for the whole pitch — NEXT, AND OVERDUE**
 
 **Goal:** answer the one question that decides the strategy, before anything is
 built on top of the answer.
@@ -1888,7 +1888,7 @@ rather than 11.
 
 ---
 
-### ☐ P3 — CloudDetector and the shared prompt · ~1h
+### ☑ P3 — CloudDetector and the shared prompt · ~1h — **DONE (out of order, see log)**
 
 **Goal:** validate the shared prompt and JSON contract cheaply, before spending
 GPU time on it.
@@ -2079,6 +2079,7 @@ session needs to know that is not already in this document.
 | P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
+| P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
 | P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 

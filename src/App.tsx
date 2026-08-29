@@ -6,6 +6,7 @@ import { Verdict } from './screens/Verdict'
 import { Listen } from './screens/Listen'
 import { Probe } from './dev/Probe'
 import { Engines } from './dev/Engines'
+import { Llm } from './dev/Llm'
 import { analyzeWithRules } from './detector/rules'
 import type { DetectionResult } from './detector/types.ts'
 
@@ -26,6 +27,7 @@ export default function App() {
 
   if (path === '/dev/probe') return <Probe />
   if (path === '/dev/engines') return <Engines />
+  if (path === '/dev/llm') return <Llm />
 
   if (path === '/listen') {
     return <Listen onBack={() => navigate('/')} />
