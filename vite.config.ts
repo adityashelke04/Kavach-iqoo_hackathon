@@ -76,5 +76,8 @@ export default defineConfig({
   server: {
     // Needed to open the dev server from the phone on the same network.
     host: true,
+    watch: {
+      ignored: ['**/.chrome-cdp-profile/**', '**/screenshots/**'],
+    },
   },
 })
