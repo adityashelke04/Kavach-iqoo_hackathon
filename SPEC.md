@@ -110,7 +110,7 @@ defensible choice, and it is stated openly in the pitch rather than hidden:
 on the roadmap slide, named as requiring the dialer role, so that a judge who
 knows the platform sees that we know it too.
 
-Listen mode (§10.6, §11 P10) is the honest middle ground: the user puts a call on
+Listen mode (§10.6, §11 P11) is the honest middle ground: the user puts a call on
 speakerphone and Kavach listens through the *microphone* — which is permitted —
 and runs the same detector on the live transcript.
 
@@ -852,11 +852,11 @@ is user-selectable in Settings; `standard` is the default.
 | `standard` | ≈1B | **Default** | The demo-safe balance of latency and quality. |
 | `max` | ≈3B | Pitch / heavy | Deliberately exercised on stage (§9, §13). Slower, noticeably more device work. |
 
-Exact model IDs are chosen at P6 from the WebLLM prebuilt list and **written
+Exact model IDs are chosen at P7 from the WebLLM prebuilt list and **written
 into this table at that time**, together with measured numbers, so no later
 session re-benchmarks:
 
-| Tier | Model ID | Download size | Load time (iQOO 15) | Tokens/sec | Fill after P6 |
+| Tier | Model ID | Download size | Load time (iQOO 15) | Tokens/sec | Fill after P7 |
 |---|---|---|---|---|---|
 | `low` | _TBD_ | _TBD_ | _TBD_ | _TBD_ | ☐ |
 | `standard` | _TBD_ | _TBD_ | _TBD_ | _TBD_ | ☐ |
@@ -902,7 +902,7 @@ context window that fits a 4,000-character message plus the prompt.
 #### Standalone test
 
 A dev-only route `/dev/engines` runs the full corpus (§12) through this engine
-and prints per-message verdicts and latencies. Used at P6 to confirm the engine
+and prints per-message verdicts and latencies. Used at P7 to confirm the engine
 works before any UI depends on it.
 
 ---
@@ -1278,7 +1278,7 @@ Dark is the default theme. Light is defined and correct, but the demo runs dark.
 Light theme redefines the same names under `[data-theme='light']`. No new names,
 no component-level overrides.
 
-**Contrast obligations (verified at P3, re-verified at P11):**
+**Contrast obligations (verified at P4, re-verified at P12):**
 
 | Pair | Requirement |
 |---|---|
@@ -1353,7 +1353,7 @@ as attributed third-party component code rather than carried-in project code
    numbers, no inline hex left behind. Add a one-line attribution comment at the
    top of each vendored file.
 2. **No component-level animation library sprawl.** Pick one motion library at
-   P3 and use only that.
+   P4 and use only that.
 3. **Animation budget — hard constraint.** Decorative animation must not run
    while inference is running. We are deliberately loading a 1–3B model onto the
    same device (D6/D7); a looping background effect competing with WebGPU for
@@ -1653,7 +1653,7 @@ Not a compliance checkbox — the target user skews older, and the demo hall is
 dark and loud.
 
 - **Never colour alone.** Every verdict carries an icon and a text headline.
-- **Contrast** per the §10.2 table, verified at P3 and again at P11.
+- **Contrast** per the §10.2 table, verified at P4 and again at P12.
 - **Tap targets** ≥ `--tap-min` (44px). No exceptions, including the engine
   switch and preset chips.
 - **Body text** never below `--fs-md` (16px). The message body especially.
@@ -1683,82 +1683,151 @@ phase is the most reliable way to lose a night.
 
 Window: Sat 11:00 → Sun 12:00. **Code freeze 09:00 Sunday** for rehearsal.
 The timeboxes below sum to roughly the whole build window with no slack — which
-is the point. If a phase overruns, the overrun comes out of P10 (Listen), not
+is the point. If a phase overruns, the overrun comes out of P11 (Listen), not
 out of the phases after it.
+
+### The ordering principle
+
+Two rules produced this order, and a future session changing it should preserve
+both:
+
+1. **Retire the biggest unknown as early and as cheaply as possible.** WebLLM
+   running on the actual iQOO is the existential risk — the entire pitch rests
+   on it. So P2 is a 45-minute throwaway spike that answers *only* that
+   question, at roughly hour 4. If it fails we re-plan with 18 hours left
+   instead of 11. The full engine is still built later, at P7, once there is a
+   UI worth putting it behind.
+2. **After the first end-to-end build, every phase boundary is shippable.** From
+   P6 onward, stopping at any point leaves a coherent demo rather than a
+   half-finished one. See the ladder below.
+
+### The demo ladder
+
+If time runs out, this is what you have:
+
+| After | You can demo |
+|---|---|
+| P6 | Paste → verdict, scam and legit, on the phone. Beats 1–2. |
+| P7 | The same, running **on-device**. Beats 1–3. |
+| **P8** | **Add airplane mode. Beats 1, 2, 4, 6 — the complete winning demo.** |
+| P9 | Device panel open during a Max-tier run. Beat 3 in full. |
+| P10 | Insurance: failsafe and silent fallback under failure. |
+| P11 | Beat 5, Listen mode. |
+| P12 | Rehearsed and frozen. |
+
+**P8 is the milestone that matters.** Everything after it is additive. Aim to be
+there by roughly hour 14, which leaves the whole second half for polish, the
+optional beats, and rehearsal rather than for panic.
 
 ### Priority under time pressure
 
-**P6 and P7 outrank P10.** On-device inference and the interface are the two
+**P7 and P8 outrank P11.** On-device inference and the offline demo are the two
 things actually being judged (D6, D8). If the night runs short, Listen mode is
-cut before anything on-device or any UI quality is compromised.
+cut before anything on-device, offline, or UI quality is compromised.
 
 ---
 
-### ☐ P0 — Scaffold · ~1h
+### ☐ P0 — Scaffold, deploy, WebGPU probe · ~1h
 
-**Goal:** a deployed, installable shell reachable from the phone.
+**Goal:** a deployed, installable shell reachable from the phone, and the first
+byte of risk retired.
 
-**Do:** Vite + React + TypeScript + Tailwind. `vite-plugin-pwa`. Base folder
-structure per §10.3 (empty directories with an index barrel). Push to GitHub.
-Connect Vercel with auto-deploy on push. `.env.example` with
-`VITE_OPENROUTER_API_KEY=`.
+**Do:** Vite + React + TypeScript + Tailwind. `vite-plugin-pwa`. Folder
+structure per §10.3. Minimal internal router (no dependency) so Android's back
+button behaves. `.env.example` with `VITE_OPENROUTER_API_KEY=`. Push to GitHub.
+Connect Vercel with auto-deploy on push. **A `/dev/probe` route reporting
+WebGPU adapter presence, IndexedDB availability, service-worker state and user
+agent.**
 
-**Exit criterion:** the Vercel URL loads on the iQOO phone over HTTPS and shows
-the app title.
+**Exit criterion:** the Vercel URL loads on the iQOO over HTTPS, and
+`/dev/probe` reports a WebGPU adapter present on that device.
 
 **Note:** do this during a Green Light window. Installs and first deploys are
 miserable over remote-control.
 
 ---
 
-### ☐ P1 — Types, RuleDetector, corpus harness · ~2h
+### ☐ P1 — Detector core · ~2h
 
 **Goal:** a working detector with zero dependencies, and a test that pins it.
 
 **Do:** `src/detector/types.ts` exactly as §7. `validate.ts`. `verdict.ts` (the
 §4 mapping plus all four override rules). `evidence.ts` (§7 resolution
-algorithm). **`sender.ts` (§5.5 `classifySender`)**. `terms.ts` (§8.3 term sets,
-seeded from §5 and the corpus). `rules.ts` including the sender contribution
-table. `/corpus/*.json` (§12) — seed with whatever Maharishi has; the harness
-must run on a partial corpus. `npm run test:corpus`.
+algorithm). `sender.ts` (§5.5 `classifySender`). `terms.ts` (§8.3 term sets,
+seeded from §5). `rules.ts` including the sender contribution table.
+`/corpus/*.json` (§12). `npm run test:corpus`.
+
+**Seed the corpus yourself** with a starter set drawn from §5's example phrases
+so this phase is never blocked waiting on Maharishi. Real messages replace the
+seeds as they arrive; the harness must run on a partial corpus either way.
 
 **Exit criterion:** `npm run test:corpus` runs and **passes the false-positive
 gate** — no legit message returns `danger`. Sender classification unit tests
 pass for every row of the §5.5 table, including `+91`-prefixed, `0`-prefixed and
-space-separated number formats.
+space-separated formats.
 
-**Why first:** from here on there is always something demoable, and the LLM
+**Why this early:** from here on there is always something demoable, and the LLM
 engines are never on the critical path to *having something to show*.
 
 ---
 
-### ☐ P2 — CloudDetector · ~1h
+### ☐ P2 — WebLLM spike · ~45m · **go/no-go for the whole pitch**
+
+**Goal:** answer the one question that decides the strategy, before anything is
+built on top of the answer.
+
+**Do:** install `@mlc-ai/web-llm`. A dev-only route `/dev/llm` that loads the
+**smallest** available model, runs one hardcoded prompt, and prints: adapter
+info, download size, load time, output, tokens/sec. No UI, no types, no
+integration, no prompt engineering. Throwaway code — P7 rewrites it properly.
+
+**Exit criterion:** on the iQOO, over HTTPS, the model loads and produces
+tokens, with the numbers printed on screen. Then reload and confirm the second
+load is served from IndexedDB.
+
+**If it fails:** stop and re-plan immediately. Do not attempt to fix it inside
+this timebox and do not proceed to P3 assuming it will work later. The fallback
+strategy is cloud-first with the rules engine, and the on-device story becomes an
+honest "here is why this is hard, and here is how far we got" — which is still a
+respectable Open Innovation entry, but only if we pivot with 18 hours left
+rather than 11.
+
+**This phase exists purely to move that decision from hour 10 to hour 4.**
+
+---
+
+### ☐ P3 — CloudDetector and the shared prompt · ~1h
 
 **Goal:** validate the shared prompt and JSON contract cheaply, before spending
 GPU time on it.
 
-**Do:** `prompt.ts` (§8.4). `cloud.ts` (§8.2). Parsing, repair retry, validation.
-Dev route `/dev/engines` that runs a message through a chosen engine and dumps
-the raw result.
+**Do:** `prompt.ts` (§8.4), including the sender-classification line. `cloud.ts`
+(§8.2). Parsing, repair retry, validation. A minimal `orchestrator.ts` — sender
+classification, engine selection, timeout, fallback to rules. Dev route
+`/dev/engines` that runs a message through a chosen engine and dumps the raw
+result.
 
 **Exit criterion:** a real scam SMS pasted at `/dev/engines` returns a valid,
-schema-passing `DetectionResult` with correctly resolved evidence offsets.
+schema-passing `DetectionResult` with correctly resolved evidence offsets and a
+correct `senderSignal`.
 
-**Why before Local:** P6 then inherits a proven prompt and only has to solve
-WebGPU. Debugging a bad prompt and a bad WebGPU setup simultaneously is how the
-night gets eaten.
+**Why before the local engine:** P7 then inherits a proven prompt and only has to
+solve WebGPU. Debugging a bad prompt and a bad WebGPU setup simultaneously is how
+the night gets eaten.
 
 ---
 
-### ☐ P3 — Design system · ~2h
+### ☐ P4 — Design system · ~1.5h
 
-**Goal:** the token layer and primitives, before any screen exists.
+**Goal:** the token layer and the primitives the next two screens actually need.
 
 **Do:** `src/ui/tokens.css` per §10.2, wired into Tailwind's theme. Light theme.
-`src/ui/copy.ts` from §10.7. Primitives: Button, Card, Sheet, Switch, Chip,
-Progress, Skeleton, Icon. Choose the motion library. Vendor the first React Bits
-component and retarget it at the tokens (§10.4). Dev route `/dev/ui` rendering
-every primitive in every state.
+`src/ui/copy.ts` from §10.7. Choose the motion library. Dev route `/dev/ui`
+rendering every primitive in every state.
+
+**Build only the primitives P5 and P6 need** — Button, Card, Chip, Switch,
+Progress, Icon. Sheet and Skeleton wait until a screen actually calls for them.
+Building an unused primitive at hour 6 is the cheapest thing to cut.
 
 **Exit criterion:** `/dev/ui` renders on the phone; every primitive is driven
 entirely by tokens; the §10.2 contrast table is verified; toggling
@@ -1769,7 +1838,7 @@ is the version of this that fails, and D8 promises a redesign.
 
 ---
 
-### ☐ P4 — Verdict screen and highlighting · ~2h
+### ☐ P5 — Verdict screen and highlighting · ~2h
 
 **Goal:** the most important screen, driven by fixture data.
 
@@ -1780,45 +1849,66 @@ loop. Include a fixture for each SenderCard variant, and one with no sender.
 
 **Exit criterion:** every corpus message rendered through fixtures highlights
 correctly; **the concatenated segments equal the original text for all of them**
-(assert this in the test suite, not by eye); all three verdict states look right
-on the phone.
+(assert this in the test suite, not by eye); all three verdict states and all
+SenderCard variants look right on the phone.
 
 ---
 
-### ☐ P5 — Home screen · ~1.5h
+### ☐ P6 — Home screen, end to end · ~1.5h · **first demoable build**
 
 **Goal:** close the loop.
 
 **Do:** `Home.tsx` with paste field, `SenderField` (§10.6), presets, primary
 action, the Analyzing inline state, `EngineSwitch`. Wire to the orchestrator
-(rules + cloud only at this point).
+(rules + cloud at this point).
 
 **Exit criterion:** paste → verdict works end-to-end on the phone, one-handed,
 for both a scam preset and the legit preset, with each preset auto-filling its
 sender and the SenderCard rendering correctly for both.
 
-**This is the first genuinely demoable build.** Commit it and be glad it exists.
+**Commit this and be glad it exists.** It is the first build that would survive
+being shown to someone.
 
 ---
 
-### ☐ P6 — LocalDetector · ~3h · **headline phase**
+### ☐ P7 — LocalDetector, full · ~2.5h · **headline phase**
 
-**Goal:** the claim the whole pitch rests on.
+**Goal:** the claim the whole pitch rests on, properly built.
 
-**Do:** `models.ts` tier table. `local.ts` (§8.1): WebGPU probe, singleton engine,
-preload on app open, progress reporting, generation, parse, repair, validate.
-`ModelProgress`. **Fill in the §8.1 measurement table with real numbers from the
-iQOO.**
+**Do:** `models.ts` tier table. `local.ts` (§8.1): WebGPU probe, singleton
+engine, preload on app open, progress reporting, generation, parse, repair,
+validate. `ModelProgress`. Delete the P2 spike code. **Fill in the §8.1
+measurement table with real numbers from the iQOO.**
 
-**Exit criterion:** an on-device verdict on the phone with the network on; then
-reload the page and confirm the second load reads from IndexedDB rather than
-re-downloading; §8.1 table filled in.
+**Exit criterion:** an on-device verdict on the phone with the network on; reload
+and confirm the second load reads from IndexedDB rather than re-downloading;
+§8.1 table filled in.
 
-**Largest timebox and the largest risk. If it overruns, take the time from P10.**
+The spike (P2) already proved this is possible, so this phase is engineering, not
+discovery — which is why it is 2.5h rather than 3.
 
 ---
 
-### ☐ P7 — Device panel and tier selector · ~1.5h
+### ☐ P8 — PWA hardening and the offline demo · ~1.5h · **the milestone**
+
+**Goal:** the signature demo beat, and the point at which the core demo is
+complete.
+
+**Do:** manifest (name, icons, theme colour from tokens, standalone display),
+service worker precaching the app shell, install prompt handling, offline
+fallback. Confirm the model cache survives alongside the SW cache.
+
+**Exit criterion:** installed to the iQOO home screen from Chrome; then
+**airplane mode on, launch from the home screen icon, paste a scam message with
+On-device selected, and get a correct verdict.**
+
+**Rehearse §13 beats 1, 2, 4 and 6 here, end to end.** From this point the demo
+exists and everything else improves it. If the night goes badly from here, you
+still have a complete story.
+
+---
+
+### ☐ P9 — Device panel and tier selector · ~1.5h
 
 **Goal:** make the local claim checkable on screen (§9).
 
@@ -1832,14 +1922,14 @@ downloads, loads and returns a verdict on the device.
 
 ---
 
-### ☐ P8 — Orchestrator hardening and failsafe · ~1.5h
+### ☐ P10 — Orchestrator hardening and failsafe · ~1h
 
 **Goal:** the user always gets a verdict, whatever breaks.
 
-**Do:** finish `orchestrator.ts` (§6): timeout budget, abort propagation, silent
-fallback, `engineUsed`/`latencyMs` stamping, `console.info` engine logging. The
-`cloud_unavailable` note. **Triple-tap the app title → pre-baked demo verdict**,
-using a fixture, for insurance against a live failure on stage.
+**Do:** harden `orchestrator.ts` (§6): full timeout budget, abort propagation,
+silent fallback, `engineUsed`/`latencyMs` stamping, `console.info` engine
+logging. The `cloud_unavailable` note. **Triple-tap the app title → pre-baked
+demo verdict**, using a fixture, for insurance against a live failure on stage.
 
 **Exit criterion:** with an analysis in flight, kill the network (or force the
 engine to throw) and confirm the user still receives a verdict with no error UI;
@@ -1847,22 +1937,7 @@ cancel aborts genuinely; triple-tap works on the phone.
 
 ---
 
-### ☐ P9 — PWA hardening · ~1.5h
-
-**Goal:** the signature demo beat.
-
-**Do:** manifest (name, icons, theme colour from tokens, standalone display),
-service worker precaching the app shell, install prompt handling, offline
-fallback. Confirm the model cache survives.
-
-**Exit criterion:** installed to the iQOO home screen from Chrome; then
-**airplane mode on, launch from the home screen icon, paste a scam message with
-On-device selected, and get a correct verdict.** This is the demo. Rehearse it
-here, not on stage.
-
----
-
-### ☐ P10 — Listen mode · ~2.5h · **timeboxed, kill-criterion below**
+### ☐ P11 — Listen mode · ~2.5h · **timeboxed, kill-criterion below**
 
 **Goal:** live-call detection through the mic.
 
@@ -1876,8 +1951,8 @@ overlay.
 
 **☠ Kill-criterion — pre-approved, not a failure:** if the exit criterion is not
 met when the timebox expires, **cut it**. Hide the entry point, commit, move to
-P11. The demo runs on paste + offline alone, which is already a complete story.
-No session may take time from P11 to rescue P10.
+P12. The demo runs on paste + offline alone, which is already a complete story.
+No session may take time from P12 to rescue P11.
 
 **Known hazards:** Android Chrome `SpeechRecognition` stops on silence — restart
 it on the `end` event. Recognition needs network, so Listen mode is not part of
@@ -1886,7 +1961,7 @@ breath.
 
 ---
 
-### ☐ P11 — Polish, tuning, rehearsal, freeze · ~2.5h
+### ☐ P12 — Polish, tuning, rehearsal, freeze · ~2.5h
 
 **Goal:** arrive at 09:00 Sunday with something rehearsed.
 
@@ -1907,6 +1982,7 @@ session needs to know that is not already in this document.
 
 | Phase | Finished | Notes for the next session |
 |---|---|---|
+| | | |
 | | | |
 
 ---
@@ -2031,7 +2107,7 @@ Run on the iQOO at P9 and again at P11. Not on the laptop.
 
 ## §13 · Demo script
 
-**Target: ~90 seconds.** Rehearse on the iQOO at least three times at P11.
+**Target: ~90 seconds.** Rehearse on the iQOO at least three times at P12.
 Every beat below is a thing that works, not a thing we hope works.
 
 | # | Beat | Time | What is said |
@@ -2040,7 +2116,7 @@ Every beat below is a thing that works, not a thing we hope works.
 | 2 | Paste a **real bank SMS** with its real `VM-SBIINB` header. Green verdict. | ~12s | "And this is a genuine SBI message, from the registered sender. Green. It doesn't just flag everything red — that's the hard part." |
 | 3 | **Open the device panel while a Max-tier analysis runs.** | ~15s | "That was the AI running on this phone. Two gigabytes of model, cached on device, zero bytes sent." |
 | 4 | **Airplane mode on. Paste a scam message. Same verdict.** | ~25s | "Nothing to fall back on. No network at all. Same answer — because the model is on the phone." |
-| 5 | Listen mode: play a recorded scam call on speaker from a second phone. Live transcript, mid-call interrupt. *(Cut if P10 was killed.)* | ~30s | "And it works on live calls through the speaker, on the same detector." |
+| 5 | Listen mode: play a recorded scam call on speaker from a second phone. Live transcript, mid-call interrupt. *(Cut if P11 was killed.)* | ~30s | "And it works on live calls through the speaker, on the same detector." |
 | 6 | Close. | ~10s | "Google ships this only on Pixel 9 and above, in English, off by default. We're building it for everyone else." |
 
 **Beats 1 and 2 together are the sender story**, and it is the most
@@ -2058,7 +2134,7 @@ on screen. Let the silence sit.
 
 ### Failsafe
 
-**Triple-tap the app title** → a pre-baked verdict from a fixture (P8). Insurance
+**Triple-tap the app title** → a pre-baked verdict from a fixture (P10). Insurance
 against a dead model, a wedged GPU, or a phone that decided to update itself.
 
 Rules for its use: it exists so that a technical failure does not become dead air
@@ -2085,16 +2161,16 @@ Pre-decided, so nobody has to improvise at 3am.
 | WebGPU unavailable on the judging device | Low — verified on iQOO 15 | Demo from our own device. Cloud mode and the rules engine both still work; `no_webgpu` copy exists. |
 | `max` tier too slow or OOMs on the phone | Medium | `standard` is the default. Tier switch is one tap. `tier_downgraded` handles OOM automatically (§8.1). |
 | Model download too slow on venue wifi | **High** | Download and cache during a Green Light window, well before the demo. Never download live on stage. Verify the cache after. |
-| Web Speech needs network / stops on silence | High | Restart on `end`. Listen mode is excluded from the offline claim (§10.6). P10 has a kill-criterion. |
+| Web Speech needs network / stops on silence | High | Restart on `end`. Listen mode is excluded from the offline claim (§10.6). P11 has a kill-criterion. |
 | OpenRouter rate limit or key expiry | Medium | Silent fallback to rules (§6). Cloud is not the demo path anyway (D6). |
-| False positives on legit bank SMS | Medium | The hard gate in §12. Negative terms in §8.3. Tuned at P11. |
+| False positives on legit bank SMS | Medium | The hard gate in §12. Negative terms in §8.3. Tuned at P12. |
 | Sender check flagging ordinary WhatsApp forwards from friends | **High if built naively** | The §5.5 context rule: a personal number only weighs heavily *with* the `authority` tactic. Covered by corpus entries of harmless personal-number messages. |
 | Users leave the sender field blank | Certain, and fine | Sender is optional everywhere (§5.5). Detection without it is exactly as good as before. Presets fill it so the demo always shows it. |
 | Over-trusting a registered DLT header | Medium | §5.5: the header may only lower the score modestly, never force `safe`. Header spoofing and misused registered headers both occur. |
 | Decorative animation stealing frame time from inference | Medium | §10.4 animation budget — effects pause during analysis. |
-| UI polish consuming time P6/P7 need | **High** | The §11 priority rule. P3 gives a system so polish is cheap later; P11 is the only phase where polish is the job. |
+| UI polish consuming time P7/P8 need | **High** | The §11 priority rule. P4 gives a system so polish is cheap later; P12 is the only phase where polish is the job. |
 | Red Light window blocking laptop access | Certain | Do installs, model downloads and deploys during Green Light. Red Light is for coding against an already-working setup. |
-| Highlighting corrupts the user's message | Low but fatal | Asserted in the test suite at P4 (§12), not checked by eye. |
+| Highlighting corrupts the user's message | Low but fatal | Asserted in the test suite at P5 (§12), not checked by eye. |
 | API key visible in the client bundle | Certain | Accepted for a hackathon build with a free-tier key. Disclosed here. A production build would proxy it; we have no backend by constraint (§2). |
 | A session builds ahead and breaks a later phase | Medium | §11's "do only your phase" rule, and the completion log. |
 
@@ -2178,7 +2254,7 @@ successful recovery into a visible failure, on stage, in front of judges. See
 **D3 · Listen mode is in the MVP.**
 Chosen deliberately for demo payoff despite the risk. Mitigated with a hard
 timebox and a pre-approved kill-criterion so it cannot sink the paste flow
-(§11 P10).
+(§11 P11).
 
 **D4 · English + Hinglish only.**
 Covers the overwhelming majority of real Indian scam SMS. Devanagari and Kannada

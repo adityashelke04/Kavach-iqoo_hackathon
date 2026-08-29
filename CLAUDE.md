@@ -61,4 +61,5 @@ Dev-only routes: `/dev/ui` (primitive gallery), `/dev/engines` (raw engine outpu
 
 ## Current status
 
-Phase: **P0 not started.** Repo contains `SPEC.md` and this file only.
+Phase: **P0 in progress.** See SPEC.md §11 for the phase plan and the ordering
+principle behind it.
