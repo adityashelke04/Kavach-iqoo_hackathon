@@ -485,7 +485,7 @@ export function Findings({ result, text }: { result: DetectionResult; text: stri
   )
 
   return (
-    <div className="stack stack--loose">
+    <div className="stack stack--loose stagger">
       <section className="panel panel--quiet">
         <h2 className="panel__title">{copy.why_title}</h2>
         <p className="panel__lead">{result.explanation}</p>

@@ -915,6 +915,11 @@
   background: var(--safe-field);
 }
 
+/* The judgment settles in three quick beats — mark, then headline, then sub —
+ * the same reading order principle 3 already establishes (§10.1). Each rule
+ * below defines only the `from` of `reveal` (§13's "authored entrance, from
+ * an already-visible default"), so with motion off every element renders
+ * at its normal, final position immediately — never blocked on JS. */
 .verdict__mark {
   display: inline-flex;
   align-items: center;
@@ -923,6 +928,7 @@
   height: 64px;
   margin-bottom: var(--sp-2);
   border-radius: var(--r-full);
+  animation: reveal var(--dur-slow) var(--ease-emphasis) both;
 }
 
 .verdict--danger .verdict__mark {
@@ -950,6 +956,8 @@
   letter-spacing: var(--tracking-display);
   color: var(--text);
   text-wrap: balance;
+  animation: reveal var(--dur-slow) var(--ease-emphasis) both;
+  animation-delay: 70ms;
 }
 
 .verdict__sub {
@@ -959,6 +967,8 @@
   line-height: var(--lh-snug);
   color: var(--text);
   opacity: 0.85;
+  animation: reveal var(--dur-slow) var(--ease-emphasis) both;
+  animation-delay: 140ms;
 }
 
 /* The message, re-rendered with the flagged phrases marked in place. */
@@ -970,13 +980,29 @@
   overflow-wrap: anywhere;
 }
 
+/* Evidence lights up a beat after the message panel has already settled in
+ * (principle 3, §10.1: show the evidence, not the reasoning — but only once
+ * the reader has actually reached the reader's own words, not before). Only
+ * the tint and underline animate; the word itself is full-strength text from
+ * the first frame, so nothing is ever unreadable while this runs. */
 .evidence-mark {
   padding: 1px 2px;
   border-radius: 3px;
-  background: var(--hl-bg);
-  box-shadow: inset 0 -2px 0 var(--hl-line);
   color: var(--hl-text);
   font-weight: var(--fw-semibold);
+  animation: mark-in var(--dur-base) var(--ease-out) both;
+  animation-delay: 420ms;
+}
+
+@keyframes mark-in {
+  from {
+    background: transparent;
+    box-shadow: inset 0 -2px 0 transparent;
+  }
+  to {
+    background: var(--hl-bg);
+    box-shadow: inset 0 -2px 0 var(--hl-line);
+  }
 }
 
 .quote-list {
