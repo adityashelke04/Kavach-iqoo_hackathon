@@ -1,41 +1,109 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import type { DetectionResult } from '../detector/types.ts'
 import { Findings, VerdictBanner } from '../ui/components/index.tsx'
-import { copy } from '../ui/copy.ts'
+import { copy, TACTIC_LABELS } from '../ui/copy.ts'
+import { IconCopy, IconCheck, IconShare } from '../ui/icons.tsx'
 
 /**
- * Verdict — SPEC.md §10.6. The most important screen in the product.
+ * Verdict — SPEC.md §10.6.
  *
- * Order is deliberate (§10.1): the judgment, then the proof, then the
- * explanation. A highlighted phrase in the user's own message convinces where
- * a paragraph does not.
- *
- * The banner scrolls away normally — it is not pinned. A sticky red bar over a
- * scrolling message is oppressive and fights "calm under alarm".
+ * Reading order: judgment, why, the proof in the reader's own words, who sent
+ * it, how it works on you, what to do. Everything technical is behind "How we
+ * checked" at the bottom, closed.
  */
 export function Verdict({
   result,
   text,
+  pending = false,
   onAgain,
 }: {
   result: DetectionResult
   text: string
+  /** An on-device engine is still working behind this verdict (D13). */
+  pending?: boolean
   onAgain: () => void
 }) {
   const bannerRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     bannerRef.current?.focus()
   }, [])
 
+  /** A summary a person could forward to the relative who received the message. */
+  const buildSummary = useCallback(() => {
+    const head =
+      result.verdict === 'danger'
+        ? copy.verdict_danger_head
+        : result.verdict === 'caution'
+          ? copy.verdict_caution_head
+          : copy.verdict_safe_head
+
+    return [
+      `Kavach: ${head}`,
+      result.explanation,
+      result.senderSignal.kind !== 'unknown'
+        ? `${copy.sender_card_title}: ${result.senderSignal.raw} — ${result.senderSignal.note}`
+        : '',
+      result.verdict !== 'safe' && result.tactics.length > 0
+        ? `${copy.tactics_title}:\n${result.tactics
+            .map((t) => `- ${TACTIC_LABELS[t.name] ?? t.label}: ${t.note}`)
+            .join('\n')}`
+        : '',
+      result.verdict !== 'safe' ? `${copy.next_move_title}: ${result.nextMove}` : '',
+      '---',
+      text,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+  }, [result, text])
+
+  const copySummary = useCallback(() => {
+    void navigator.clipboard?.writeText(buildSummary())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [buildSummary])
+
+  const share = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: copy.app_name, text: buildSummary() })
+        return
+      } catch {
+        /* cancelled or unsupported — fall through to the clipboard */
+      }
+    }
+    copySummary()
+  }, [buildSummary, copySummary])
+
   return (
     <div className="screen">
-      <div ref={bannerRef} tabIndex={-1} style={{ outline: 'none' }}>
+      <div ref={bannerRef} tabIndex={-1}>
         <VerdictBanner verdict={result.verdict} />
       </div>
 
       <div className="screen__body">
+        {/* The honest version of a loading state: there is already an answer
+            on screen, and the phone is still working on a better one. */}
+        {pending && (
+          <div className="upgrading" role="status" aria-live="polite">
+            <span className="upgrading__dot" aria-hidden="true" />
+            <span>{copy.upgrading}</span>
+          </div>
+        )}
+
         <Findings result={result} text={text} />
+
+        <div className="action-row">
+          <button type="button" className="chip chip--grow" onClick={copySummary}>
+            {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+            <span>{copied ? copy.cta_copied : copy.cta_copy}</span>
+          </button>
+          <button type="button" className="chip chip--grow" onClick={share}>
+            <IconShare size={16} />
+            <span>{copy.cta_share}</span>
+          </button>
+        </div>
       </div>
 
       <div className="screen__footer">

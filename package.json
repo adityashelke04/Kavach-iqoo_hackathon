@@ -9,9 +9,13 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test:corpus": "node scripts/test-corpus.mjs",
-    "test:smoke": "node scripts/smoke.mjs"
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:mobile": "node scripts/mobile-check.mjs",
+    "test:fusion": "node scripts/test-fusion.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-genai": "^0.10.29",
+    "@mlc-ai/web-llm": "^0.2.84",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

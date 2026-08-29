@@ -23,6 +23,10 @@ Do not read the whole spec first. Do not build ahead of your phase.
 2. **Never render a number about the message.** No score, no percentage, no
    confidence bar. `confidence` is internal only. Numbers about the *device*
    (§9) are fine; numbers about the *message* are not. (§4)
+2b. **Plain language on every default screen** (D11). No "forensic", "verbatim",
+   "threat vector", "telemetry", "protocol", "advisory". The engine, the
+   latency and the DLT explanation live behind `How we checked`. A SAFE verdict
+   highlights nothing and accuses nobody.
 3. **The rules engine is invisible.** Never selectable, never named, never
    surfaced as an error or a degraded state. (§6, §8.3)
 4. **Every engine returns a result and never throws.** Failure rejects the
@@ -55,11 +59,25 @@ Do not read the whole spec first. Do not build ahead of your phase.
 npm run dev           # local dev server
 npm run build         # production build
 npm run test:corpus   # corpus regression + false-positive gate (hard gate)
+npm run test:smoke    # renders every screen against real engine output
+npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
+npm run test:mobile   # renders at 412x915 in Chrome; asserts no sideways
+                      # scroll, no tap target under 44px, no percentage in the
+                      # DOM, and drives Check -> Verdict for scam and legit
 ```
+
+`test:mobile` writes `screenshots/mobile_*.png`. Do not replace it with
+`chrome --screenshot --window-size=412,...`: Windows Chrome refuses to size a
+window below ~500px and silently crops the shot, which looks exactly like
+horizontal overflow that is not there.
 
 Dev-only routes: `/dev/ui` (primitive gallery), `/dev/engines` (raw engine output).
 
 ## Current status
 
-Phase: **P0 in progress.** See SPEC.md §11 for the phase plan and the ordering
-principle behind it.
+Rules engine, all four screens, and Listen mode are done and pass every gate.
+The UI was rebuilt against D11 — read that entry before changing any copy.
+
+Still open: P2 (WebLLM go/no-go), P3 (CloudDetector), P7 (LocalDetector),
+P8 (PWA hardening + offline demo), P9 (device telemetry panel), P10
+(orchestrator hardening + triple-tap failsafe). See SPEC.md §11.

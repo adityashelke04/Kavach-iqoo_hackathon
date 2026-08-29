@@ -1,69 +1,123 @@
-/* Kavach design tokens — SPEC.md §10.2
+/* Kavach design tokens — SPEC.md §10.2. The redesign surface.
  *
- * THE REDESIGN SURFACE. Every colour, size, radius and duration in the app
- * resolves to something in this file.
+ * DIRECTION CONTRACT
  *
- * RULE (§10.2, frozen): no component may hard-code a hex, a radius, or a
- * duration. If a value is needed that is not here, add the token.
+ * THESIS: Kavach answers one question — "can I trust this?" — in the first
+ * viewport, in the words a frightened person actually uses. It refuses the
+ * security-console arrangement (threat badges, forensic readouts, telemetry
+ * ribbons) that makes a consumer safety tool look like the thing it guards
+ * against.
  *
- * Android-first: touch targets follow Material's 48dp minimum (not iOS's 44),
- * and the type scale is one step larger than a typical web app because the
- * audience includes grandparents reading at arm's length in a bright room.
+ * OWN-WORLD: Heat #FA5D19 on graphite #262626 over near-black #0B0B0C, with
+ * paper #F9F9F9 type. Heat is rationed to one thing per screen — the action —
+ * so that when a verdict floods it edge to edge, the escalation is felt as
+ * area, not hue. Emerald for safe, amber for caution. Flat surfaces, one
+ * hairline border, no glow, no bezels, no faceted emblems.
+ *
+ * STORY: paste -> read the verdict -> see your own words marked -> understand
+ * why in one sentence -> know what to do. Proof of on-device work is one tap
+ * away, never in the way.
+ *
+ * FIRST VIEWPORT (Home): wordmark, then two actions filling the thumb zone,
+ * then one line saying nothing leaves the phone. Nothing else.
+ *
+ * FORM: Operate. Committed colour — Heat owns the primary action and the
+ * danger field. Android-first: 48dp targets, system back, safe-area aware.
+ *
+ * RULES (frozen, §10.2): no component hard-codes a colour, radius, or
+ * duration. Numbers about the device are allowed; numbers about the message
+ * are never rendered (§4). Zero emoji.
  */
 
 :root {
-  /* ---- surfaces & text (dark, the default) ---- */
-  --bg: #0b0d10;
-  --surface: #14181d;
-  --surface-2: #1c222a;
-  --surface-3: #242c36;
-  --border: #2a323c;
-  --border-strong: #3a4552;
-  --text: #f2f5f8;
-  --text-muted: #a3aebc;
-  --text-faint: #75808e;
+  /* ---- type stacks ----
+   * Body is the platform face: Roboto on the iQOO, rendering instantly with no
+   * network round-trip and correct Devanagari. Archivo carries the wordmark and
+   * the verdict headline, and degrades to the same stack if it never arrives. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-display: 'Archivo', system-ui, -apple-system, Roboto, sans-serif;
+
+  /* ---- ground & surfaces ----
+   * A four-step ladder. Each step is a real elevation, not a shade. */
+  --bg: #0b0b0c;
+  --surface: #141416;
+  --surface-2: #1c1c1f;
+  --surface-3: #262626; /* Graphite */
+  --overlay: rgba(11, 11, 12, 0.92);
+
+  /* ---- borders ---- */
+  --border: rgba(249, 249, 249, 0.1);
+  --border-strong: rgba(249, 249, 249, 0.2);
+
+  /* ---- text ----
+   * -faint is AA-verified at 5.7:1 on --surface; the old #727276 was 3.9:1. */
+  --text: #f9f9f9; /* Paper */
+  --text-muted: #a6a6ac;
+  --text-faint: #8e8e96;
+  --text-inverse: #0b0b0c;
+
+  /* ---- brand ----
+   * Heat carries the primary action. Text on a Heat fill is ink, not white:
+   * white on Heat is 3.1:1 and fails AA, ink is 6.3:1. */
+  --heat: #fa5d19;
+  --heat-hover: #ff7336;
+  --heat-active: #d8490b;
+  --heat-tint: rgba(250, 93, 25, 0.14);
+  --heat-on-tint: #ffa280;
+  --heat-border: rgba(250, 93, 25, 0.4);
+  --on-heat: #0b0b0c;
 
   /* ---- verdict roles ----
-     -accent : the saturated state colour (icon, rule, key text)
-     -tint   : low-chroma surface behind a verdict region
-     -on-tint: text colour, AA-verified on -tint            */
-  --danger-accent: #f0575b;
-  --danger-tint: #2b1316;
-  --danger-on-tint: #ffc9cb;
+   * -accent: the state colour.  -field: the flooded region behind a verdict.
+   * -tint: a quiet surface wash.  -on-tint: AA-verified text on that wash. */
+  --danger-accent: #fa5d19;
+  --danger-field: linear-gradient(180deg, #7a2408 0%, #2a1108 62%, var(--bg) 100%);
+  --danger-tint: rgba(250, 93, 25, 0.14);
+  --danger-on-tint: #ffa280;
+  --danger-border: rgba(250, 93, 25, 0.34);
 
-  --caution-accent: #ffb224;
-  --caution-tint: #2b2109;
-  --caution-on-tint: #ffd98a;
+  --caution-accent: #ffb020;
+  --caution-field: linear-gradient(180deg, #6b4708 0%, #2a1e08 62%, var(--bg) 100%);
+  --caution-tint: rgba(255, 176, 32, 0.14);
+  --caution-on-tint: #ffce73;
+  --caution-border: rgba(255, 176, 32, 0.32);
 
-  --safe-accent: #3dbe80;
-  --safe-tint: #0e2119;
-  --safe-on-tint: #86dfb2;
+  --safe-accent: #00e599;
+  --safe-field: linear-gradient(180deg, #05513a 0%, #0a2620 62%, var(--bg) 100%);
+  --safe-tint: rgba(0, 229, 153, 0.12);
+  --safe-on-tint: #70ffcf;
+  --safe-border: rgba(0, 229, 153, 0.28);
 
-  /* Evidence highlight in the message body. Tinted background plus an
-     underline, so it survives greyscale and colour-blind viewing (§10.8). */
-  --hl-bg: rgb(240 87 91 / 0.22);
-  --hl-line: var(--danger-accent);
+  /* ---- evidence highlight (§10.8) ----
+   * Tint plus an underline, so a flag survives greyscale and colour-blindness. */
+  --hl-bg: rgba(250, 93, 25, 0.2);
+  --hl-line: var(--heat);
+  --hl-text: #ffffff;
 
   /* ---- type scale ----
-     One step larger than usual, per the readability decision. --fs-md is the
-     body/message minimum and must never be reduced. */
-  --fs-xs: 0.8125rem; /* 13 - metadata only            */
-  --fs-sm: 0.9375rem; /* 15 - secondary copy           */
-  --fs-md: 1.0625rem; /* 17 - body, message text (min) */
-  --fs-lg: 1.375rem; /*  22 - card titles              */
-  --fs-xl: 1.75rem; /*   28 - screen titles            */
-  --fs-2xl: 2.375rem; /* 38 - big numbers              */
-  --fs-3xl: 3rem; /*      48 - verdict headline        */
+   * 13 / 15 / 17 / 20 / 27 / 34 / 44. Body is 17 and never smaller for a
+   * message the user has to read. Hierarchy comes from weight as much as size. */
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.6875rem;
+  --fs-2xl: 2.125rem;
+  --fs-3xl: 2.75rem;
 
-  --lh-tight: 1.15;
-  --lh-snug: 1.35;
+  --lh-tight: 1.08;
+  --lh-snug: 1.32;
   --lh-body: 1.55;
 
-  --fw-normal: 400;
+  --tracking-tight: -0.03em;
+  --tracking-display: -0.045em;
+
+  --fw-regular: 400;
   --fw-medium: 500;
+  --fw-semibold: 600;
   --fw-bold: 700;
 
-  /* ---- spacing (4px base) ---- */
+  /* ---- spacing (4px base, with a macro step for section breaks) ---- */
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
@@ -73,61 +127,87 @@
   --sp-8: 2rem;
   --sp-10: 2.5rem;
   --sp-12: 3rem;
+  --gap-item: var(--sp-3); /* between things in a group   */
+  --gap-group: var(--sp-6); /* between groups              */
+  --gap-section: var(--sp-10); /* between sections            */
 
-  /* ---- radii ---- */
+  /* ---- radii: three steps and a pill, nothing else ---- */
   --r-sm: 8px;
   --r-md: 14px;
   --r-lg: 20px;
-  --r-xl: 28px;
-  --r-full: 999px;
+  --r-full: 9999px;
 
-  /* ---- elevation ---- */
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
-  --shadow-2: 0 6px 20px rgb(0 0 0 / 0.4);
-  --shadow-3: 0 -4px 24px rgb(0 0 0 / 0.5);
+  /* ---- elevation, mapped to hierarchy ----
+   * 1 raised card · 2 sticky chrome · 3 full-screen takeover. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 -2px 16px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.7);
 
   /* ---- motion ---- */
   --dur-fast: 120ms;
   --dur-base: 220ms;
-  --dur-slow: 380ms;
+  --dur-slow: 420ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Exponential ease-out. Decelerates hard, never overshoots. */
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* ---- layout ---- */
-  --tap-min: 48px; /* Material minimum. Android-first. */
+  --tap-min: 48px; /* Material minimum. Android-first, never overridden. */
   --content-max: 34rem;
   --page-x: var(--sp-5);
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--heat);
 }
 
-/* ---- light theme ---------------------------------------------------------
-   Defined and correct. Same token names, no new ones. */
+/* ---- light theme ----
+ * Reachable: App sets data-theme from the OS preference. Every value the dark
+ * theme defines is redefined here, so no component leaks a dark-only colour. */
 :root[data-theme='light'] {
-  --bg: #f7f9fb;
+  --bg: #f9f9f9; /* Paper */
   --surface: #ffffff;
-  --surface-2: #eff3f7;
-  --surface-3: #e3eaf1;
-  --border: #d8e0e8;
-  --border-strong: #b9c5d1;
-  --text: #10151b;
-  --text-muted: #55606e;
-  --text-faint: #7a8593;
+  --surface-2: #f1f1f2;
+  --surface-3: #e6e6e8;
+  --overlay: rgba(249, 249, 249, 0.94);
 
-  --danger-accent: #c62828;
-  --danger-tint: #fdecec;
-  --danger-on-tint: #8e1b1b;
+  --border: rgba(11, 11, 12, 0.12);
+  --border-strong: rgba(11, 11, 12, 0.24);
 
-  --caution-accent: #a66a00;
-  --caution-tint: #fff6e5;
-  --caution-on-tint: #7a4e00;
+  --text: #141416;
+  --text-muted: #55555c;
+  --text-faint: #6e6e76;
+  --text-inverse: #f9f9f9;
 
-  --safe-accent: #17784b;
-  --safe-tint: #e8f6ef;
-  --safe-on-tint: #0e5133;
+  --heat: #d4470a;
+  --heat-hover: #fa5d19;
+  --heat-active: #ad3906;
+  --heat-tint: #ffece4;
+  --heat-on-tint: #93300a;
+  --heat-border: rgba(212, 71, 10, 0.4);
+  --on-heat: #ffffff;
 
-  --hl-bg: rgb(198 40 40 / 0.14);
-  --hl-line: var(--danger-accent);
+  --danger-accent: #d4470a;
+  --danger-field: linear-gradient(180deg, #ffd9c9 0%, #ffece4 62%, var(--bg) 100%);
+  --danger-tint: #ffece4;
+  --danger-on-tint: #93300a;
+  --danger-border: rgba(212, 71, 10, 0.28);
 
-  --shadow-1: 0 1px 2px rgb(16 21 27 / 0.08);
-  --shadow-2: 0 6px 20px rgb(16 21 27 / 0.1);
-  --shadow-3: 0 -4px 24px rgb(16 21 27 / 0.12);
+  --caution-accent: #a86400;
+  --caution-field: linear-gradient(180deg, #ffeec2 0%, #fff7e4 62%, var(--bg) 100%);
+  --caution-tint: #fff3d6;
+  --caution-on-tint: #6d4100;
+  --caution-border: rgba(168, 100, 0, 0.28);
+
+  --safe-accent: #027a55;
+  --safe-field: linear-gradient(180deg, #c4f4e2 0%, #e3fbf2 62%, var(--bg) 100%);
+  --safe-tint: #dcf7ec;
+  --safe-on-tint: #015239;
+  --safe-border: rgba(2, 122, 85, 0.26);
+
+  --hl-bg: rgba(250, 93, 25, 0.18);
+  --hl-text: #141416;
+
+  --shadow-1: 0 1px 2px rgba(11, 11, 12, 0.06), 0 2px 8px rgba(11, 11, 12, 0.06);
+  --shadow-2: 0 -2px 16px rgba(11, 11, 12, 0.08);
+  --shadow-3: 0 16px 48px rgba(11, 11, 12, 0.18);
+
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--heat);
 }

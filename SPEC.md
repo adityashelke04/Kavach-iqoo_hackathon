@@ -1859,7 +1859,7 @@ engines are never on the critical path to *having something to show*.
 
 ---
 
-### ☐ P2 — WebLLM spike · ~45m · **go/no-go for the whole pitch**
+### ☐ P2 — WebLLM spike · ~45m · **go/no-go for the whole pitch — NEXT, AND OVERDUE**
 
 **Goal:** answer the one question that decides the strategy, before anything is
 built on top of the answer.
@@ -1888,7 +1888,7 @@ rather than 11.
 
 ---
 
-### ☐ P3 — CloudDetector and the shared prompt · ~1h
+### ☑ P3 — CloudDetector and the shared prompt · ~1h — **DONE (out of order, see log)**
 
 **Goal:** validate the shared prompt and JSON contract cheaply, before spending
 GPU time on it.
@@ -2078,6 +2078,10 @@ session needs to know that is not already in this document.
 | P4-P6 | done | Home / Check / Verdict wired to the orchestrator. Screens compose, components render, detector decides - no component imports an engine. `npm run test:smoke` renders every screen against real engine output. |
 | P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
+| UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
+| P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
+| P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
+| P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 
 ---
@@ -2469,6 +2473,144 @@ Kavach analyses messages, not live call audio, because Android does not permit
 third-party access to the call-audio stream without the default-dialer role.
 This is stated openly in the pitch and placed on the roadmap rather than hidden.
 See §1.
+
+### 2026-08-29 — D11 · The interface speaks plainly; the proof is one tap away
+
+An interim build drifted the interface into a security-operations register:
+`CRITICAL THREAT`, `FORENSIC SUMMARY`, `VERBATIM EVIDENCE READOUT`,
+`EVIDENCE INPUT BUFFER`, `DEFENSIVE ACTION PROTOCOL`, `Local Silicon`,
+`4-Layer Audit`, `DLT Invariant`. It looked technical, and it contradicted
+§10.1's second principle and §10.7's own writing rules.
+
+The register is not a matter of taste here. The reader is a frightened person
+who has just received a threatening message, and a tool that talks like malware
+analysis is a tool they close. Worse, on a §4 DANGER screen it reads as the
+same intimidation the scam is using — §10.1's fourth principle exists precisely
+to prevent that.
+
+**Decided.** Every default screen is in plain second person. The technical
+account — which engine ran, how long it took, that nothing was transmitted, how
+DLT sender headers work — moves into one collapsed `How we checked` disclosure
+at the bottom of the verdict. Nothing is deleted, and the on-device story is
+still fully available to a judge who taps.
+
+Consequences, all shipped with this entry:
+
+- §10.7's copy deck is rewritten in that register and now bans the vocabulary
+  above by name, alongside the existing ban on percentages.
+- Home drops the four-card "defense architecture" grid: it restated the privacy
+  line in other words and pushed both real actions out of thumb reach.
+- Highlighting is capped at the six longest resolved spans. Marking a dozen
+  phrases in a three-line SMS paints the whole message orange and stops meaning
+  anything.
+- **A SAFE verdict marks nothing.** A genuine bank alert trips the `authority`
+  tactic without crossing the threshold, so `-SBI` was being highlighted under
+  the caption "the parts that worried us" directly below the headline
+  "Looks legitimate".
+- `describeExplanation` takes the verdict. Its clauses are written to justify a
+  warning; on a safe verdict "This claims to come from an official body." is a
+  strange reason to give for "Looks legitimate".
+- `describeNextMove` returns the neutral line whenever nothing was flagged. Its
+  phrase rules used to run first, so a real bank SMS carrying the standard
+  "do not share OTP/CVV/PIN" warning was told *"They want the OTP from your
+  bank's SMS."*
+- The Check screen's 550 ms padded delay and its rotating "Verifying TRAI DLT
+  header cryptographic format…" captions are gone. The rules engine answers in
+  single-digit milliseconds; inventing work it is not doing violates the §9
+  integrity line and is a weaker story than the real number.
+
+Heat (#FA5D19), Graphite (#262626) and Paper (#F9F9F9) are unchanged and remain
+the palette. What changed is the ration: Heat marks the action and nothing else
+on Home and Check, so that a danger verdict flooding the field edge to edge
+reads as escalation by area rather than one more orange accent among many.
+
+### 2026-08-29 — D12 · The engines decide together, not in a queue
+
+§6 originally specified a **fallback chain**: the user's chosen engine runs, and
+the rules engine substitutes only if it fails. The two never met. An LLM that
+answered was never checked against the deterministic engine, and the
+deterministic engine's findings were thrown away whenever the LLM worked.
+
+**Decided.** Rules and the LLM both run on every message and their findings are
+**fused** into one result.
+
+- Rules is the floor. It is synchronous, tuned against the corpus, gate-tested,
+  and it owns the sender/DLT signal, which a model must never guess at (D9).
+- The LLM adds what regex cannot see: novel wording, an unseen scam type,
+  Hinglish the term lists missed.
+- Tactics are unioned, one card per tactic (§7). Confidence combines by
+  weighted noisy-OR, `fused = r + 0.85·l·(1 − r)`.
+- The verdict is then recomputed by the **same** `decideVerdict`, so §4's
+  threshold table and all four override rules apply to the merged finding set.
+  Nothing downstream can tell that two engines ran.
+
+The weight is what stops two mildly-suspicious readings compounding into a
+warning: 0.20 and 0.20 fuse to 0.34, which is still `safe`, while 0.50 and 0.50
+fuse to 0.71, which is `danger` — independent agreement is worth more than
+either engine alone.
+
+**The LLM can only ever add.** `fuseConfidence` is monotonic in the rules
+confidence, asserted over the whole grid in `test:fusion`. A model politely
+concluding that a scam looks fine cannot lower a verdict the deterministic
+engine already reached, because that is exactly the argument a well-written
+scam makes.
+
+Two consequences worth recording:
+
+- **An out-of-range confidence is rejected, never rescaled.** The first version
+  read anything above 1 as a percentage. A model answering `4` on a scale of
+  its own then became 0.04 — `safe` — and a scam would have been waved through
+  with nothing in the logs. We cannot distinguish 4-percent from 4-out-of-5,
+  and the guess is only dangerous in one direction, so the contract is enforced
+  instead: a bad confidence is an engine failure (§6) and rules stands.
+- **The cloud key cannot live in the client.** Kavach is a static PWA and every
+  `VITE_*` value is compiled into the bundle. `api/analyze.ts` holds the key
+  server-side and builds the prompt itself, so the endpoint cannot be used as a
+  free general-purpose LLM proxy on the owner's account.
+
+### 2026-08-29 — D13 · The verdict is progressive
+
+An on-device 3B model produces a couple of hundred tokens of JSON in tens of
+seconds. The rules engine answers the same question in about five milliseconds.
+§6 as written would have blocked on the LLM, which means a thirty-second
+spinner in front of someone who has just been frightened by a message.
+
+That trade — a worse app for a better stage moment — is the wrong way round,
+and it collapses the first time the model is slow, cold, or unavailable.
+
+**Decided.** `analyzeProgressive` publishes the deterministic verdict
+immediately and publishes again when the fused verdict arrives. The screen
+fills in at once and sharpens in place. A slow or failed model costs the user
+nothing; it only ever adds.
+
+Consequences:
+
+- The analysis moved from `Check` into `App`. The upgrade outlives the screen
+  that started it, so running it inside `Check` would set state on an unmounted
+  component.
+- `ENGINE_TIMEOUTS.local` is 120 s, not 8 s. Nothing waits on it, so a short
+  budget would only throw away an answer the device already paid for.
+- A third engine preference, `none`, means deterministic-only. Listen mode uses
+  it for the live loop: a rolling transcript is re-analysed every couple of
+  seconds, and starting a thirty-second generation on each pass would queue
+  jobs faster than they finish and deliver the warning after the call ended.
+  The full stack runs once, on the final transcript, when the user stops.
+- The model preloads on app open rather than on first analysis, so the first
+  check is not also the first download (D6, §9).
+
+This also turns the weakness into the demo. The judge watches a verdict appear
+instantly and then visibly deepen, on a phone, with the network off — which is
+a better beat than a spinner that eventually resolves.
+
+**On the model tier.** The ceiling is not the phone. Chrome on Android caps
+`maxStorageBufferBindingSize`, commonly at 128 MiB, whatever the hardware, and
+a model whose largest weight binding exceeds it fails to load rather than
+running slowly. Tiers are therefore chosen from a measured number, not a spec
+sheet: `low` Gemma 3 1B, `standard` Llama 3.2 1B, `max` Qwen2.5 3B, with probe
+lists in `models.ts` for finding the real ceiling on device. The pitch runs on
+the iQOO, so the 7B/8B desktop candidates stay out of the tier table;
+promoting one means changing the demo device, which is a decision, not a config
+edit.
 
 ---
 

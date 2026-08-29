@@ -41,7 +41,7 @@ export function run() {
   const results = {}
 
   results.home = renderToString(<Home onCheck={noop} onListen={noop} />)
-  results.check = renderToString(<Check onResult={noop} onBack={noop} />)
+  results.check = renderToString(<Check onSubmit={noop} onBack={noop} busy={false} />)
   results.listen = renderToString(<Listen onBack={noop} />)
 
   // Every verdict state, driven by the real engine.
@@ -64,7 +64,9 @@ export function run() {
     const r = analyzeWithRules(input)
     results.verdicts[name] = {
       verdict: r.verdict,
-      html: renderToString(<Verdict result={r} text={input.text} onAgain={noop} />),
+      html: renderToString(
+        <Verdict result={r} text={input.text} pending={false} onAgain={noop} />,
+      ),
     }
   }
 

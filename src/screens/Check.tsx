@@ -1,180 +1,256 @@
-import { useState } from 'react'
-import { splitSender } from '../detector/sender.ts'
-import { analyze } from '../detector/orchestrator.ts'
-import type { DetectionResult } from '../detector/types.ts'
+import { useState, useCallback, useMemo } from 'react'
+import { splitSender, classifySender } from '../detector/sender.ts'
+import type { DetectionInput } from '../detector/types.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
+import {
+  IconCopy,
+  IconBadgeCheck,
+  IconAlertTriangle,
+  IconUserX,
+} from '../ui/icons.tsx'
 
 const MIN_CHARS = 10
+const MAX_CHARS = 4000
 
-const EXAMPLES = [
+interface Example {
+  kind: 'scam' | 'legit'
+  title: string
+  sub: string
+  sender: string
+  text: string
+}
+
+/**
+ * Three examples, named the way a person would describe them. The old list of
+ * six carried titles like "CBI Digital Arrest Coercion — Institutional
+ * Authority + Isolation Mandate", which reads as a test harness rather than a
+ * product, and buried the textarea under a screenful of chrome.
+ */
+const EXAMPLES: Example[] = [
   {
-    label: copy.example_scam,
+    kind: 'scam',
+    title: 'A fake bank SMS',
+    sub: 'Says your account will be blocked',
     sender: '+91 98765 43210',
     text: 'Dear Customer, your SBI account will be blocked within 24 hours due to incomplete KYC. Update your KYC immediately at http://sbi-kyc-verify.in/update to avoid suspension.',
   },
   {
-    label: copy.example_legit,
+    kind: 'scam',
+    title: 'A fake police message',
+    sub: 'Claims there is a case against you',
+    sender: '+91 88234 11098',
+    text: 'This is Inspector Sharma from Mumbai Cyber Crime Branch. An arrest warrant has been issued against your Aadhaar for illegal money laundering. Stay on the call and do not contact anyone or visit the bank.',
+  },
+  {
+    kind: 'legit',
+    title: 'A real bank SMS',
+    sub: 'An ordinary transaction alert',
     sender: 'VM-SBIINB',
     text: 'Dear Customer, Rs.2,500.00 has been debited from A/c XX8842 on 28-Aug-26 to UPI/adityaenterprises. Avl Bal Rs.18,340.20. Not you? Call 18001111109. Do not share OTP/CVV/PIN with anyone. -SBI',
   },
 ]
 
 /**
- * Check — paste a message, get a verdict. SPEC.md §10.6.
+ * Check — SPEC.md §10.6, §5.5.
  *
- * The sender is auto-detected out of what they paste and shown for
- * confirmation, so nobody has to type it. It stays optional: if we cannot find
- * one, detection is exactly as good as before (§5.5).
+ * The sender is lifted out of whatever the user pasted rather than typed into a
+ * second field, and removed from the body so the same phone number is not
+ * counted twice by the detector.
  */
 export function Check({
-  onResult,
+  onSubmit,
   onBack,
+  busy,
 }: {
-  onResult: (result: DetectionResult, text: string) => void
+  /** The orchestrator runs in App, because the on-device upgrade outlives
+   *  this screen (D13). */
+  onSubmit: (input: DetectionInput) => void
   onBack: () => void
+  busy: boolean
 }) {
   const [text, setText] = useState('')
   const [sender, setSender] = useState('')
-  const [detected, setDetected] = useState(false)
   const [editingSender, setEditingSender] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   const tooShort = text.trim().length < MIN_CHARS
+  const truncated = text.length > MAX_CHARS
+  const signal = useMemo(() => classifySender(sender), [sender])
 
-  /** Lift a sender out of pasted text so it is not double-counted in the body. */
-  function ingest(raw: string) {
+  /** Pull a sender out of the pasted blob if one is in there (§5.5). */
+  const ingest = useCallback((raw: string) => {
     const split = splitSender(raw)
     if (split.sender) {
       setSender(split.sender)
-      setDetected(true)
       setText(split.body)
     } else {
       setText(raw)
     }
-  }
+  }, [])
 
-  async function run() {
-    if (tooShort || busy) return
-    setBusy(true)
-    const body = text.trim()
+  const pasteFromClipboard = useCallback(async () => {
     try {
-      const [result] = await Promise.all([
-        analyze({
-          text: body,
-          channel: 'text',
-          ...(sender.trim() ? { sender: sender.trim() } : {}),
-        }),
-        new Promise((resolve) => setTimeout(resolve, 400)),
-      ])
-      onResult(result, body)
-    } finally {
-      setBusy(false)
+      const clip = await navigator.clipboard?.readText()
+      if (clip) ingest(clip)
+    } catch {
+      /* clipboard blocked — the user can still paste with the keyboard */
     }
-  }
+  }, [ingest])
+
+  const useExample = useCallback((ex: Example) => {
+    setText(ex.text)
+    setSender(ex.sender)
+    setEditingSender(false)
+  }, [])
+
+  /**
+   * Hands off and returns. The deterministic verdict lands in milliseconds and
+   * App navigates on it; the on-device model upgrades it later (D13).
+   */
+  const run = useCallback(() => {
+    if (tooShort || busy) return
+    onSubmit({
+      text: text.trim().slice(0, MAX_CHARS),
+      channel: 'text',
+      ...(sender.trim() ? { sender: sender.trim() } : {}),
+    })
+  }, [tooShort, busy, text, sender, onSubmit])
+
+  const senderTone =
+    signal.kind === 'dlt_header'
+      ? 'registered'
+      : signal.risk === 'high'
+        ? 'personal'
+        : 'neutral'
 
   return (
     <div className="screen">
-      <AppBar title="Check a message" onBack={onBack} />
+      <AppBar title={copy.home_check_title} onBack={onBack} />
 
       <div className="screen__body">
-        <div>
-          <label className="label" htmlFor="msg">
-            Paste the message
-          </label>
-          <textarea
-            id="msg"
-            className="field field--message"
-            value={text}
-            autoFocus
-            placeholder={copy.paste_placeholder}
-            onChange={(e) => setText(e.target.value)}
-            onPaste={(e) => {
-              const pasted = e.clipboardData.getData('text')
-              if (pasted && text.trim() === '') {
-                e.preventDefault()
-                ingest(pasted)
-              }
-            }}
-          />
-          {tooShort && text.length > 0 && <p className="hint">{copy.too_short}</p>}
-          {text.length > 4000 && <p className="hint">{copy.truncated}</p>}
-        </div>
-
-        {sender && !editingSender ? (
-          <div>
-            <div className="detected">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="detected__label">From</div>
-                <div className="detected__value">{sender}</div>
-              </div>
-              <button
-                className="chip"
-                onClick={() => setEditingSender(true)}
-                aria-label="Edit sender"
-              >
-                Edit
-              </button>
-            </div>
-            {detected && <p className="hint">We spotted this in what you pasted.</p>}
+        {busy ? (
+          <div className="working" role="status" aria-live="polite">
+            <div className="working__pulse" aria-hidden="true" />
+            <p className="working__text">{copy.working}</p>
           </div>
         ) : (
-          <div>
-            <label className="label" htmlFor="sender">
-              {copy.sender_label}
-            </label>
-            <input
-              id="sender"
-              className="field field--sender"
-              value={sender}
-              placeholder={copy.sender_placeholder}
-              onChange={(e) => {
-                setSender(e.target.value)
-                setDetected(false)
-              }}
-              onBlur={() => setEditingSender(false)}
-            />
-            <p className="hint">
-              A real bank uses a name like VM-SBIINB. A scam usually comes from a normal
-              number.
-            </p>
-          </div>
-        )}
-
-        <div>
-          <p className="section-label" style={{ marginBottom: 'var(--sp-2)' }}>
-            {copy.try_example}
-          </p>
-          <div className="chips">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex.label}
-                className="chip"
-                onClick={() => {
-                  setText(ex.text)
-                  setSender(ex.sender)
-                  setDetected(false)
-                  setEditingSender(false)
+          <>
+            <div className="composer">
+              <textarea
+                className="composer__area"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text')
+                  if (pasted) {
+                    e.preventDefault()
+                    ingest(pasted)
+                  }
                 }}
-              >
-                {ex.label}
-              </button>
-            ))}
-          </div>
-        </div>
+                placeholder={copy.paste_placeholder}
+                aria-label={copy.paste_placeholder}
+              />
+              <div className="composer__bar">
+                <button type="button" className="chip" onClick={pasteFromClipboard}>
+                  <IconCopy size={16} />
+                  <span>{copy.cta_paste}</span>
+                </button>
+                {text.length > 0 && (
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => {
+                      setText('')
+                      setSender('')
+                    }}
+                  >
+                    {copy.cta_clear}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {truncated && <p className="hint">{copy.truncated}</p>}
+
+            {/* Sender: shown once we have one, editable, never demanded. */}
+            {sender && !editingSender && (
+              <div className={`sender-strip sender-strip--${senderTone}`}>
+                <span className="sender-strip__icon" aria-hidden="true">
+                  {senderTone === 'registered' ? (
+                    <IconBadgeCheck size={20} />
+                  ) : senderTone === 'personal' ? (
+                    <IconUserX size={20} />
+                  ) : (
+                    <IconAlertTriangle size={20} />
+                  )}
+                </span>
+                <span className="sender-strip__body">
+                  <span className="sender-strip__label">{copy.sender_detected}</span>
+                  <span className="sender-strip__value">{sender}</span>
+                </span>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setEditingSender(true)}
+                >
+                  {copy.cta_edit}
+                </button>
+              </div>
+            )}
+
+            {(editingSender || (!sender && text.length > 0)) && (
+              <div className="stack">
+                <label className="section-head" htmlFor="sender-input">
+                  {copy.sender_label_optional}
+                </label>
+                <input
+                  id="sender-input"
+                  className="field"
+                  value={sender}
+                  onChange={(e) => setSender(e.target.value)}
+                  onBlur={() => setEditingSender(false)}
+                  placeholder={copy.sender_placeholder}
+                  autoComplete="off"
+                />
+                <p className="hint">{copy.sender_hint}</p>
+              </div>
+            )}
+
+            <section>
+              <h2 className="section-head">{copy.try_example}</h2>
+              <div className="examples">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex.title}
+                    type="button"
+                    className="example"
+                    onClick={() => useExample(ex)}
+                  >
+                    <span
+                      className={`example__dot example__dot--${ex.kind}`}
+                      aria-hidden="true"
+                    />
+                    <span className="example__body">
+                      <span className="example__title">{ex.title}</span>
+                      <span className="example__sub">{ex.sub}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
 
       <div className="screen__footer">
-        {busy ? (
-          <div className="thinking">
-            <span className="spinner" aria-hidden="true" />
-            Checking…
-          </div>
-        ) : (
-          <button className="btn btn--primary" disabled={tooShort} onClick={run}>
-            {copy.cta_check}
-          </button>
-        )}
+        <button
+          className="btn btn--primary"
+          onClick={run}
+          disabled={tooShort || busy}
+        >
+          {copy.cta_check}
+        </button>
+        {tooShort && text.length > 0 && <p className="hint center">{copy.too_short}</p>}
       </div>
     </div>
   )
