@@ -15,7 +15,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const out = mkdtempSync(join(tmpdir(), 'kavach-smoke-'))
+const out = mkdtempSync(join(root, 'node_modules', '.kavach-smoke-'))
 const entry = join(out, 'entry.tsx')
 const bundle = join(out, 'bundle.mjs')
 
