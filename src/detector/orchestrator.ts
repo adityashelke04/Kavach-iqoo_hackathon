@@ -51,7 +51,7 @@ export const ENGINE_TIMEOUTS = { local: 120_000, cloud: 15_000 } as const
 
 /** LLM engines by preference, in the order they are tried. */
 const LLM_ENGINES: Record<EnginePreference, Detector[]> = {
-  local: [localDetector, cloudDetector],
+  local: [localDetector],
   cloud: [cloudDetector],
   none: [],
 }

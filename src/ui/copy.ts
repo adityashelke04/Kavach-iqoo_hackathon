@@ -93,13 +93,23 @@ export const copy = {
   sender_shortcode_note: 'This came from a service shortcode.',
   sender_other_note: 'This came from an unusual kind of sender.',
 
-  // --- Home ----------------------------------------------------------------
+  // --- Home & Engine Switch (§10.6, §10.7) --------------------------------
   home_check_title: 'Check a message',
   home_check_sub: 'SMS, WhatsApp, email — anything you can copy',
   home_listen_title: 'Listen to a call',
   home_listen_sub: 'Kavach warns you while the call is happening',
   home_privacy:
     'Messages are checked on your phone. Nothing you paste is sent anywhere.',
+
+  // --- Engine & Privacy Switch (§10.6, §10.7) -------------------------------
+  engine_title: 'Privacy & Engine',
+  engine_local: 'On-device',
+  engine_local_badge: 'Private',
+  engine_cloud: 'Cloud',
+  engine_cloud_badge: 'Fast',
+  engine_local_note: 'The AI runs on your phone. Nothing you paste leaves it.',
+  engine_cloud_note: 'Faster on older phones. Your message is sent to be analysed.',
+  cloud_unavailable: 'No connection — checking on your phone instead',
 
   // --- Listen --------------------------------------------------------------
   listen_title: 'Listen to a call',

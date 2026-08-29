@@ -25,7 +25,7 @@ import type { Channel } from '../src/detector/types.ts'
 // for it would change what `setTimeout` returns everywhere in `src`.
 declare const process: { env: Record<string, string | undefined> }
 
-const DEFAULT_MODEL = 'google/gemini-2.0-flash-001'
+const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite'
 const MAX_CHARS = 4000
 const UPSTREAM_TIMEOUT_MS = 12_000
 
@@ -88,7 +88,7 @@ export default async function handler(request: Request): Promise<Response> {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env['KAVACH_CLOUD_MODEL'] ?? DEFAULT_MODEL,
+        model: process.env['KAVACH_CLOUD_MODEL']?.trim() || DEFAULT_MODEL,
         // Deterministic-ish: this is a classification, not a creative task.
         temperature: 0,
         max_tokens: 700,

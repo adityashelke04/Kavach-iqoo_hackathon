@@ -93,6 +93,33 @@ export interface HighlightSegment {
 }
 
 /**
+ * Resolve all occurrences of evidence phrases across a target text string.
+ * Used for live streaming transcripts so all matching phrases stay highlighted
+ * regardless of buffer windowing.
+ */
+export function resolveAllEvidence(
+  targetText: string,
+  tactics: ReadonlyArray<{ name: string; evidence: ReadonlyArray<{ phrase: string }> }>,
+): Array<{ start: number; end: number; tactic: string }> {
+  if (!targetText || tactics.length === 0) return []
+  const spans: Array<{ start: number; end: number; tactic: string }> = []
+  const lower = targetText.toLowerCase()
+
+  for (const t of tactics) {
+    for (const e of t.evidence) {
+      const phrase = e.phrase.trim().toLowerCase()
+      if (!phrase) continue
+      let idx = 0
+      while ((idx = lower.indexOf(phrase, idx)) !== -1) {
+        spans.push({ start: idx, end: idx + phrase.length, tactic: t.name })
+        idx += phrase.length
+      }
+    }
+  }
+  return spans
+}
+
+/**
  * Turn overlapping evidence spans into a flat, non-overlapping list of
  * segments covering the whole input.
  *

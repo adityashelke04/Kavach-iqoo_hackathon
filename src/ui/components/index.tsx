@@ -416,7 +416,11 @@ export function HowWeChecked({ result }: { result: DetectionResult }) {
         </div>
         <div className="meta-row">
           <span className="meta-row__k">{copy.how_sent}</span>
-          <span className="meta-row__v">{copy.how_sent_no} (0 bytes over network)</span>
+          <span className="meta-row__v">
+            {result.engineUsed === 'cloud'
+              ? 'Sent securely to Kavach server'
+              : `${copy.how_sent_no} (0 bytes over network)`}
+          </span>
         </div>
 
         <LearnedSummary />
@@ -512,3 +516,6 @@ export function Findings({ result, text }: { result: DetectionResult; text: stri
     </div>
   )
 }
+
+export * from './EngineSwitch.tsx'
+

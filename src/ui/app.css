@@ -456,6 +456,151 @@
 }
 
 /* ==========================================================================
+   8b. Engine & Privacy Switch (Impeccable tactile control)
+   ========================================================================== */
+
+.engine-switch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.engine-switch__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.engine-switch__status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.engine-switch__status-pill--safe {
+  background: var(--safe-tint);
+  color: var(--safe-accent);
+  border-color: var(--safe-border);
+}
+
+.engine-switch__track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.28);
+  min-height: 52px;
+  user-select: none;
+  isolation: isolate;
+}
+
+.engine-switch__thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+  z-index: 1;
+}
+
+.engine-switch__thumb--left {
+  transform: translate3d(0, 0, 0);
+}
+
+.engine-switch__thumb--right {
+  transform: translate3d(100%, 0, 0);
+}
+
+.engine-switch__option {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out), transform 120ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.engine-switch__option:active {
+  transform: scale(0.96);
+}
+
+.engine-switch__option--active {
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+
+.engine-switch__option--active .engine-switch__icon {
+  color: var(--heat);
+}
+
+.engine-switch__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-faint);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.engine-switch__label {
+  white-space: nowrap;
+}
+
+.engine-switch__caption-wrap {
+  min-height: 20px;
+}
+
+.engine-switch__caption {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-faint);
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.engine-switch__caption--warning {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--caution-accent);
+}
+
+.engine-switch__caption-icon {
+  flex: none;
+}
+
+/* ==========================================================================
    9. Check — composer
    ========================================================================== */
 
@@ -916,10 +1061,40 @@
   justify-content: center;
   width: 96px;
   height: 96px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   background: var(--surface-2);
   color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+  font: inherit;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.mic__core:hover:not(:disabled) {
+  transform: scale(1.04);
+  border-color: var(--text-muted);
+}
+
+.mic__core:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.mic__core:focus-visible {
+  outline: 2px solid var(--heat);
+  outline-offset: 4px;
+}
+
+.mic__core:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .mic--listening .mic__core {
@@ -940,6 +1115,7 @@
   border: 2px solid var(--heat);
   border-radius: var(--r-full);
   opacity: 0;
+  pointer-events: none;
 }
 
 .mic--listening .mic__ring {
@@ -970,7 +1146,7 @@
   text-align: center;
 }
 
-/* Level meter — reflects whether speech is arriving, nothing more. */
+/* Level meter — dynamic audio metering across 12 voice frequency bars */
 .level {
   display: flex;
   align-items: center;
@@ -986,37 +1162,19 @@
   background: var(--surface-3);
   /* scaleY, not height: twelve bars animating a layout property would thrash
      layout on the same frames the detector is running (SPEC 10.4). */
-  transform: scaleY(0.3);
+  transform: scaleY(0.18);
   transform-origin: center;
-  transition: transform var(--dur-fast) var(--ease-out);
+  transition: transform 60ms linear, background-color var(--dur-fast) var(--ease-out);
   will-change: transform;
 }
 
 .level--active .level__bar {
   background: var(--heat);
-  animation: level-pulse 900ms var(--ease-out) infinite;
 }
 
-.level--active .level__bar:nth-child(2n) {
-  animation-delay: 150ms;
-}
-
-.level--active .level__bar:nth-child(3n) {
-  animation-delay: 300ms;
-}
-
-.level--active .level__bar:nth-child(5n) {
-  animation-delay: 450ms;
-}
-
-@keyframes level-pulse {
-  0%,
-  100% {
-    transform: scaleY(0.3);
-  }
-  50% {
-    transform: scaleY(1);
-  }
+.mic--danger ~ .level .level__bar,
+.level--danger .level__bar {
+  background: var(--danger-accent);
 }
 
 .status-line {

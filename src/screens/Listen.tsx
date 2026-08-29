@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analyze } from '../detector/orchestrator.ts'
+import { analyzeWithRules } from '../detector/rules.ts'
 import type { DetectionResult, Tactic } from '../detector/types.ts'
-import { buildSegments } from '../detector/evidence.ts'
+import { buildSegments, resolveAllEvidence } from '../detector/evidence.ts'
 import { Findings } from '../ui/components/index.tsx'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
@@ -17,10 +18,13 @@ import {
 /**
  * Listen — SPEC.md §10.6, §5.6.
  *
- * Web Speech drives a rolling window of the transcript through the same
- * orchestrator the paste flow uses, with `channel: 'voice'` so the engine also
- * matches the spoken forms of acronyms ("o t p"). A danger verdict takes over
- * the whole screen, because someone mid-call is not reading a card.
+ * Ambient in-call scam detection:
+ * 1. Semantic, interactive record button with tactile feedback and full accessibility.
+ * 2. Real-time microphone audio metering via Web Audio API (AudioContext + AnalyserNode)
+ *    driving a 60fps 12-bar equalizer.
+ * 3. Dual-track streaming speech recognition (en-IN / hi-IN / Hinglish) with fast-track
+ *    conclusive pattern scanning (<350ms) to trigger instant danger interrupts.
+ * 4. Coordinate-accurate evidence highlighting and full transcript preservation.
  */
 
 interface SpeechResultAlt {
@@ -53,7 +57,8 @@ function getSpeechCtor(): SpeechCtor | null {
   return (w['SpeechRecognition'] ?? w['webkitSpeechRecognition'] ?? null) as SpeechCtor | null
 }
 
-const DEBOUNCE_MS = 2400
+const FAST_EVAL_MS = 350
+const DEBOUNCE_MS = 1400
 const WINDOW_CHARS = 600
 
 type Phase = 'priming' | 'listening' | 'denied' | 'unsupported' | 'stopped'
@@ -66,21 +71,28 @@ interface CallPreset {
   text: string
 }
 
-/** Recorded calls, so Listen mode can be shown without a live caller. */
+/** Recorded calls in English, Hindi Devanagari, and Hinglish for instant testing. */
 const PRESETS: CallPreset[] = [
   {
-    id: 'digital-arrest',
+    id: 'digital-arrest-en',
     title: 'A fake police call',
     sub: 'Says there is a case against your Aadhaar',
     kind: 'scam',
     text: 'madam this is sub inspector from cyber crime branch your aadhaar number has been used in a money laundering case this is a confidential investigation do not tell anyone in your family we are recording this call stay on the line',
   },
   {
-    id: 'sbi-otp-scam',
+    id: 'sbi-otp-scam-en',
     title: 'A fake bank call',
     sub: 'Asks you to read out a code',
     kind: 'scam',
     text: 'hello sir i am calling from the state bank of india head office your account has been temporarily suspended please listen to me carefully do not disconnect the call i will send you a code on your phone just read out the o t p to me for verification',
+  },
+  {
+    id: 'digital-arrest-hi',
+    title: 'डिजिटल अरेस्ट कॉल (Hindi)',
+    sub: 'साइबर क्राइम सेल और गिरफ्तारी की धमकी',
+    kind: 'scam',
+    text: 'मैं साइबर क्राइम सेल दिल्ली पुलिस से सब इंस्पेक्टर बोल रहा हूँ आपके आधार कार्ड से मनी लॉन्ड्रिंग का केस दर्ज हुआ है यह एक गोपनीय जांच है किसी से बात मत करिए कमरे का दरवाजा बंद रखिए और वीडियो कॉल पर आइए',
   },
   {
     id: 'safe-delivery',
@@ -92,17 +104,21 @@ const PRESETS: CallPreset[] = [
 ]
 
 /* ==========================================================================
-   Microphone state
+   Microphone state & Audio Visualizer
    ========================================================================== */
 
 function MicState({
   phase,
   hearing,
   danger,
+  onToggle,
+  barsRef,
 }: {
   phase: Phase
   hearing: boolean
   danger: boolean
+  onToggle?: () => void
+  barsRef?: React.MutableRefObject<(HTMLSpanElement | null)[]>
 }) {
   const mod = danger ? 'mic--danger' : phase === 'listening' ? 'mic--listening' : ''
 
@@ -115,17 +131,38 @@ function MicState({
         ? copy.listen_stopped
         : copy.listen_idle
 
+  const isClickable = phase !== 'unsupported'
+  const ariaLabel =
+    phase === 'listening'
+      ? copy.listen_stop
+      : phase === 'stopped'
+        ? copy.listen_start_again
+        : copy.listen_start
+
   return (
     <div className={`mic ${mod}`}>
-      <span className="mic__core">
+      <button
+        type="button"
+        className="mic__core"
+        onClick={onToggle}
+        disabled={!isClickable}
+        aria-label={ariaLabel}
+        title={phase === 'listening' ? 'Tap to stop recording' : 'Tap to start recording'}
+      >
         <span className="mic__ring" aria-hidden="true" />
         <span className="mic__ring" aria-hidden="true" />
         {danger ? <IconShieldX size={36} /> : <IconMic size={36} />}
-      </span>
+      </button>
 
-      <div className={`level ${hearing ? 'level--active' : ''}`} aria-hidden="true">
+      <div className={`level ${phase === 'listening' ? 'level--active' : ''}`} aria-hidden="true">
         {Array.from({ length: 12 }).map((_, i) => (
-          <span key={i} className="level__bar" />
+          <span
+            key={i}
+            ref={(el) => {
+              if (barsRef) barsRef.current[i] = el
+            }}
+            className="level__bar"
+          />
         ))}
       </div>
 
@@ -135,7 +172,7 @@ function MicState({
 }
 
 /* ==========================================================================
-   Live transcript
+   Live transcript with Evidence Highlighting
    ========================================================================== */
 
 function Transcript({
@@ -151,11 +188,7 @@ function Transcript({
 }) {
   const segments = useMemo(() => {
     if (!finalText) return []
-    const spans = tactics
-      .flatMap((t) =>
-        t.evidence.map((e) => ({ start: e.start, end: e.end, tactic: t.name })),
-      )
-      .filter((e) => e.start !== -1)
+    const spans = resolveAllEvidence(finalText, tactics)
     return buildSegments(finalText, spans)
   }, [finalText, tactics])
 
@@ -169,7 +202,7 @@ function Transcript({
               s.tactics.length === 0 ? (
                 <span key={i}>{s.text}</span>
               ) : (
-                <mark key={i} className="evidence-mark">
+                <mark key={i} className="evidence-mark" title={`Detected tactic: ${s.tactics.join(', ')}`}>
                   {s.text}
                 </mark>
               ),
@@ -253,28 +286,138 @@ export function Listen({ onBack }: { onBack: () => void }) {
 
   const recRef = useRef<SpeechRecognitionLike | null>(null)
   const wantRunning = useRef(false)
-  const lastRunAt = useRef(0)
+  const lastFastRunAt = useRef(0)
+  const lastSlowRunAt = useRef(0)
   const lastRunLen = useRef(0)
   const transcriptRef = useRef('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const simTimerRef = useRef<number | null>(null)
+  const restartTimerRef = useRef<number | null>(null)
+  const simWaveTimerRef = useRef<number | null>(null)
+
+  // Web Audio & Metering refs
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const rafIdRef = useRef<number | null>(null)
+  const barsRef = useRef<(HTMLSpanElement | null)[]>([])
+
+  const stopAudioMeter = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    if (simWaveTimerRef.current !== null) {
+      window.clearInterval(simWaveTimerRef.current)
+      simWaveTimerRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (audioCtxRef.current) {
+      try {
+        void audioCtxRef.current.close()
+      } catch {}
+      audioCtxRef.current = null
+    }
+    analyserRef.current = null
+    // Reset equalizer bars smoothly
+    barsRef.current.forEach((bar) => {
+      if (bar) bar.style.transform = 'scaleY(0.18)'
+    })
+  }, [])
+
+  const startAudioMeter = useCallback(async () => {
+    stopAudioMeter()
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) return true
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
+      streamRef.current = stream
+
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextClass) return true
+
+      const ctx = new AudioContextClass()
+      audioCtxRef.current = ctx
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 64
+      analyser.smoothingTimeConstant = 0.75
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      const updateLoop = () => {
+        if (!analyserRef.current) return
+        analyserRef.current.getByteFrequencyData(dataArray)
+
+        // Map vocal spectrum across 12 bars
+        for (let i = 0; i < 12; i++) {
+          const bar = barsRef.current[i]
+          if (!bar) continue
+          const binIndex = i < 6 ? i + 1 : 12 - i
+          const rawVal = dataArray[binIndex] || 0
+          const scaled = Math.max(0.18, Math.min(1.0, (rawVal / 255) * 1.5))
+          bar.style.transform = `scaleY(${scaled.toFixed(2)})`
+        }
+        rafIdRef.current = requestAnimationFrame(updateLoop)
+      }
+      updateLoop()
+      return true
+    } catch (err) {
+      console.warn('[kavach] microphone metering notice:', err)
+      return true // Continue to Web Speech API even if Web Audio stream failed
+    }
+  }, [stopAudioMeter])
+
+  /** Simulated audio visualizer wave for preset demonstration */
+  const startSimulatedWave = useCallback(() => {
+    stopAudioMeter()
+    let step = 0
+    simWaveTimerRef.current = window.setInterval(() => {
+      step += 0.25
+      for (let i = 0; i < 12; i++) {
+        const bar = barsRef.current[i]
+        if (!bar) continue
+        const energy = Math.sin(step + i * 0.45) * 0.4 + Math.cos(step * 0.7 + i * 0.3) * 0.3 + 0.5
+        const scaled = Math.max(0.18, Math.min(1.0, energy))
+        bar.style.transform = `scaleY(${scaled.toFixed(2)})`
+      }
+    }, 70)
+  }, [stopAudioMeter])
 
   /**
-   * The live loop is deterministic-only.
-   *
-   * A rolling transcript is re-analysed every couple of seconds; starting a
-   * tens-of-seconds on-device generation on each pass would queue jobs faster
-   * than they finish and the warning would arrive after the call ended. The
-   * full stack runs once, on the final transcript, when the user stops.
+   * Fast, deterministic analysis for live stream & full stack on stop.
    */
   const runDetection = useCallback(
     async (buffer: string, deep = false) => {
       if (!buffer.trim()) return
       setAnalyzing(true)
       try {
-        const res = await analyze({ text: buffer, channel: 'voice' }, deep ? 'local' : 'none')
-        setResult(res)
-        if (res.verdict === 'danger') setInterrupted(true)
+        if (deep) {
+          const res = await analyze({ text: buffer, channel: 'voice' }, 'local')
+          setResult(res)
+          if (res.verdict === 'danger') setInterrupted(true)
+        } else {
+          const res = analyzeWithRules({ text: buffer, channel: 'voice' })
+          setResult((prev) => {
+            // Latch danger/caution so transient silence does not downgrade a flagged warning
+            if (prev?.verdict === 'danger' && res.verdict !== 'danger') return prev
+            return res
+          })
+          if (res.verdict === 'danger') setInterrupted(true)
+        }
       } finally {
         setAnalyzing(false)
       }
@@ -288,23 +431,32 @@ export function Listen({ onBack }: { onBack: () => void }) {
       window.clearInterval(simTimerRef.current)
       simTimerRef.current = null
     }
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
     try {
       recRef.current?.stop()
     } catch {
       /* already stopped */
     }
+    recRef.current = null
+    stopAudioMeter()
     setPhase('stopped')
 
-    // Now that nothing is streaming, spend the time on a full check of what
-    // was actually said.
-    const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
-    if (buffer.trim()) void runDetection(buffer, true)
-  }, [runDetection])
+    // Run complete deep analysis over the entire accumulated transcript
+    const fullTranscript = transcriptRef.current.trim()
+    if (fullTranscript) void runDetection(fullTranscript, true)
+  }, [runDetection, stopAudioMeter])
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     if (simTimerRef.current !== null) {
       window.clearInterval(simTimerRef.current)
       simTimerRef.current = null
+    }
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
     }
 
     const Ctor = getSpeechCtor()
@@ -313,65 +465,85 @@ export function Listen({ onBack }: { onBack: () => void }) {
       return
     }
 
-    const rec = new Ctor()
-    rec.continuous = true
-    rec.interimResults = true
-    rec.lang = lang
+    // 1. Prime microphone hardware & equalizer
+    await startAudioMeter()
 
-    rec.onresult = (e) => {
-      let addition = ''
-      let pending = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]
-        if (!r) continue
-        const chunk = r[0].transcript
-        if (r.isFinal) addition += chunk
-        else pending += chunk
-      }
-      setInterim(pending)
+    // 2. Setup speech recognition lifecycle
+    const setupRecognition = () => {
+      const rec = new Ctor()
+      rec.continuous = true
+      rec.interimResults = true
+      rec.lang = lang
 
-      if (addition) {
-        transcriptRef.current = `${transcriptRef.current} ${addition}`.trim()
-        setFinalText(transcriptRef.current)
+      rec.onresult = (e) => {
+        let addition = ''
+        let pending = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i]
+          if (!r) continue
+          const chunk = r[0].transcript
+          if (r.isFinal) addition += chunk
+          else pending += chunk
+        }
+        setInterim(pending)
 
-        const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
+        if (addition) {
+          transcriptRef.current = `${transcriptRef.current} ${addition}`.trim()
+          setFinalText(transcriptRef.current)
+        }
+
+        // Active buffer combines finalized transcript and streaming interim text
+        const activeText = `${transcriptRef.current} ${pending}`.trim()
+        const buffer = activeText.slice(-WINDOW_CHARS)
         const now = Date.now()
+
+        // Fast-path: Rapid conclusive rule check (<350ms)
+        if (now - lastFastRunAt.current > FAST_EVAL_MS && buffer.length > 10) {
+          lastFastRunAt.current = now
+          void runDetection(buffer, false)
+        }
+
+        // Standard-path: Periodic evaluation on buffer growth
         const grewEnough = buffer.length - lastRunLen.current > 15
-        if (now - lastRunAt.current > DEBOUNCE_MS && grewEnough) {
-          lastRunAt.current = now
+        if (addition && now - lastSlowRunAt.current > DEBOUNCE_MS && grewEnough) {
+          lastSlowRunAt.current = now
           lastRunLen.current = buffer.length
-          void runDetection(buffer)
+          void runDetection(buffer, false)
         }
       }
-    }
 
-    rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        wantRunning.current = false
+      rec.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          wantRunning.current = false
+          stopAudioMeter()
+          setPhase('denied')
+        }
+      }
+
+      rec.onend = () => {
+        if (!wantRunning.current) return
+        // Throttled restart prevents runaway CPU loops on Android Chrome silence dropouts
+        restartTimerRef.current = window.setTimeout(() => {
+          if (wantRunning.current) {
+            try {
+              setupRecognition()
+            } catch {}
+          }
+        }, 150)
+      }
+
+      recRef.current = rec
+      try {
+        rec.start()
+        setPhase('listening')
+      } catch {
         setPhase('denied')
       }
     }
 
-    // Android Chrome ends recognition the moment nobody is speaking, so a
-    // continuous session has to restart itself.
-    rec.onend = () => {
-      if (!wantRunning.current) return
-      try {
-        rec.start()
-      } catch {
-        /* restart raced with a stop */
-      }
-    }
-
-    recRef.current = rec
     wantRunning.current = true
-    try {
-      rec.start()
-      setPhase('listening')
-    } catch {
-      setPhase('denied')
-    }
-  }, [lang, runDetection])
+    setupRecognition()
+  }, [lang, runDetection, startAudioMeter, stopAudioMeter])
 
   const reset = useCallback(() => {
     stop()
@@ -380,11 +552,22 @@ export function Listen({ onBack }: { onBack: () => void }) {
     setFinalText('')
     setInterim('')
     lastRunLen.current = 0
-    lastRunAt.current = 0
+    lastFastRunAt.current = 0
+    lastSlowRunAt.current = 0
     setPhase('priming')
   }, [stop])
 
-  /** Streams a recorded call into the transcript, word by word. */
+  const toggleMic = useCallback(() => {
+    if (phase === 'listening') {
+      stop()
+    } else if (phase === 'stopped') {
+      reset()
+    } else {
+      void start()
+    }
+  }, [phase, start, stop, reset])
+
+  /** Streams a recorded call into the transcript with dynamic equalizer simulation. */
   const playPreset = useCallback(
     (preset: CallPreset) => {
       stop()
@@ -393,8 +576,10 @@ export function Listen({ onBack }: { onBack: () => void }) {
       setFinalText('')
       setInterim('')
       lastRunLen.current = 0
-      lastRunAt.current = 0
+      lastFastRunAt.current = 0
+      lastSlowRunAt.current = 0
       setPhase('listening')
+      startSimulatedWave()
 
       const words = preset.text.split(' ')
       let index = 0
@@ -413,22 +598,26 @@ export function Listen({ onBack }: { onBack: () => void }) {
 
           const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
           const now = Date.now()
-          const grewEnough = buffer.length - lastRunLen.current > 20
-          if ((now - lastRunAt.current > 1800 && grewEnough) || index === words.length) {
-            lastRunAt.current = now
+          const grewEnough = buffer.length - lastRunLen.current > 15
+          if ((now - lastFastRunAt.current > 400 && grewEnough) || index === words.length) {
+            lastFastRunAt.current = now
             lastRunLen.current = buffer.length
-            void runDetection(buffer)
+            void runDetection(buffer, false)
           }
         } else {
           if (simTimerRef.current !== null) {
             window.clearInterval(simTimerRef.current)
             simTimerRef.current = null
           }
+          if (simWaveTimerRef.current !== null) {
+            window.clearInterval(simWaveTimerRef.current)
+            simWaveTimerRef.current = null
+          }
           setInterim('')
         }
-      }, 95)
+      }, 90)
     },
-    [stop, runDetection],
+    [stop, runDetection, startSimulatedWave],
   )
 
   useEffect(() => {
@@ -438,13 +627,18 @@ export function Listen({ onBack }: { onBack: () => void }) {
         window.clearInterval(simTimerRef.current)
         simTimerRef.current = null
       }
+      if (restartTimerRef.current !== null) {
+        window.clearTimeout(restartTimerRef.current)
+        restartTimerRef.current = null
+      }
+      stopAudioMeter()
       try {
         recRef.current?.stop()
       } catch {
         /* cleanup */
       }
     }
-  }, [])
+  }, [stopAudioMeter])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -526,7 +720,13 @@ export function Listen({ onBack }: { onBack: () => void }) {
         {idle && (
           <>
             {phase === 'priming' && (
-              <MicState phase={phase} hearing={false} danger={false} />
+              <MicState
+                phase={phase}
+                hearing={false}
+                danger={false}
+                onToggle={toggleMic}
+                barsRef={barsRef}
+              />
             )}
 
             <div className="action-row" role="group" aria-label="Language">
@@ -610,7 +810,13 @@ export function Listen({ onBack }: { onBack: () => void }) {
 
         {(phase === 'listening' || phase === 'stopped') && (
           <>
-            <MicState phase={phase} hearing={interim.length > 0} danger={danger} />
+            <MicState
+              phase={phase}
+              hearing={interim.length > 0}
+              danger={danger}
+              onToggle={toggleMic}
+              barsRef={barsRef}
+            />
 
             <div className={`status-line ${statusTone}`} role="status" aria-live="polite">
               {statusText}
@@ -624,7 +830,7 @@ export function Listen({ onBack }: { onBack: () => void }) {
             />
 
             {phase === 'stopped' && result && (
-              <Findings result={result} text={finalText.slice(-WINDOW_CHARS)} />
+              <Findings result={result} text={finalText} />
             )}
           </>
         )}

@@ -424,6 +424,14 @@ export function IconPlay({ size = 20, strokeWidth = 2, className, ...props }: Ic
   )
 }
 
+export function IconCloud({ size = 20, strokeWidth = 2, className, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={strokeWidth} {...defaultProps} className={className} {...props}>
+      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+    </svg>
+  )
+}
+
 export function QuoteIcon({ size = 14, className, ...props }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none" opacity={0.6} className={className} {...props} aria-hidden="true">
