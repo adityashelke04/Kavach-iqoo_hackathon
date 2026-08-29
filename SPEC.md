@@ -174,6 +174,7 @@ the MVP column is not fully green, do not build it.
 |---|---|
 | Paste a message → verdict | The core product. Everything else is decoration without it. |
 | Three-state verdict with highlighted evidence | The judgment plus the reason. Highlighting is what makes it trustworthy rather than magic. |
+| Sender-origin check (DLT header vs personal number) | The highest-signal, lowest-ambiguity check available in the Indian market, and it costs a regex. See §5.5. |
 | On-device engine (WebLLM, WebGPU) | The headline claim and the scored behaviour (§9). |
 | Cloud engine + user switch between them | The user-controlled privacy toggle is a named key feature. |
 | Rules engine as invisible fallback | Guarantees a verdict always appears. Never shown to the user. |
@@ -261,20 +262,27 @@ own thresholds.
 | `0.35 – 0.69` | `caution` |
 | `< 0.35` | `safe` |
 
-**Override rules, applied after the table:**
+**Override rules, applied in order after the table:**
 
 1. **Extraction floor.** If the `extraction` tactic is present with at least one
    resolved piece of evidence, the verdict is at minimum `caution`. A message
    asking for an OTP is never `safe`, whatever the model scored.
-2. **Two-tactic rule.** If three or more distinct tactics are present, the
+2. **Three-tactic rule.** If three or more distinct tactics are present, the
    verdict is `danger` regardless of the confidence value. Authority + urgency +
    extraction in one message is a scam by construction.
-3. **Empty-tactic ceiling.** If no tactics were detected, the verdict is `safe`.
-   A `danger` verdict with nothing to highlight is unexplainable to the user and
-   must not be shown.
+3. **Impersonation mismatch.** If the `authority` tactic is present **and**
+   `senderSignal.risk === 'high'` (the message claims to be an institution but
+   arrived from a personal number — §5.5), the verdict is at minimum `caution`.
+   If `extraction` is also present, the verdict is `danger`. This is the
+   strongest single combination in the Indian SMS landscape and it is decided
+   deterministically, not by the model.
+4. **Empty-finding ceiling.** If no tactics were detected **and**
+   `senderSignal.risk !== 'high'`, the verdict is `safe`. A `danger` verdict with
+   nothing to show the user is unexplainable and must not be rendered.
 
-Rule 3 is the one that protects the demo: a verdict we cannot justify on screen
-is worse than no verdict.
+Rule 4 is the one that protects the demo: a verdict we cannot justify on screen
+is worse than no verdict. Note that a high-risk sender is itself something we can
+show (the SenderCard, §10.6), so it satisfies rule 4's requirement on its own.
 
 ### Tie-breaking and degenerate input
 
@@ -427,6 +435,90 @@ presence triggers the extraction floor in §4.
 
 ---
 
+### §5.5 · Sender origin — a signal, not a tactic
+
+**The insight:** in India, legitimate commercial and institutional SMS cannot
+legally arrive from a personal mobile number. Under TRAI's DLT regime, banks,
+government bodies, couriers and merchants must send through a **registered
+alphanumeric header** — `VM-SBIINB`, `AD-HDFCBK`, `JD-AMAZON`, `TX-ICICIB`.
+
+A scam almost always cannot. Scammers send from an ordinary 10-digit mobile
+number, a WhatsApp account, or an international number, because registering a
+DLT header requires a real registered business entity.
+
+So: **"Your SBI account is blocked" arriving from +91 98xxxxxxxx is a
+contradiction on its face.** A real bank message from a personal number does not
+exist. This is one of the highest-signal, lowest-ambiguity checks available in
+this market, and it costs a regex.
+
+#### Why it is not a fifth tactic
+
+The four tactics in §5 describe **manipulation inside the message text**, and
+each one is evidenced by phrases with character offsets that get highlighted in
+the message body (§7). Sender origin is **metadata about the envelope** — it has
+no span inside the message and nothing to highlight.
+
+Mixing the two would corrupt the `Evidence` contract. So sender origin is a
+separate field, `senderSignal` (§7), rendered as its own card in the UI (§10.6)
+so it still reads to the user as a flagged finding.
+
+#### Classification — deterministic, in code, always
+
+`src/detector/sender.ts` exports `classifySender(raw: string): SenderSignal`.
+
+**This runs in code, in every engine path, regardless of which engine is
+active.** A regex parses a phone number exactly and for free; a 1B model does
+not. The LLM is *told* the classification as a fact — it never performs it.
+
+| Kind | Shape | Risk | Meaning |
+|---|---|---|---|
+| `dlt_header` | `XY-ABCDEF` — 2-char prefix, hyphen, 6 alphanumeric | `none` | A registered sender. The normal shape of a real bank/courier/government SMS. |
+| `shortcode` | 5–6 digits | `none` | Operator or service shortcode. |
+| `phone_number` | 10 digits starting 6–9, optionally `+91`/`0` prefixed | **`high`** | A personal Indian mobile. No legitimate institution sends from one. |
+| `telemarketer` | Starts `140` | `medium` | Registered telemarketing. Legal, but commercial and worth noting. |
+| `international` | `+` and a country code that is not `+91` | **`high`** | Common for large-scale fraud operations. |
+| `email_or_other` | Anything else | `medium` | Unusual origin; worth noting, not conclusive. |
+| `unknown` | Not provided by the user | `none` | Sender is **optional**. Absence is never penalised. |
+
+#### The context rule — this is what stops false positives
+
+**A personal number is only damning when the message claims to be an
+institution.** Your cousin forwarding you a WhatsApp message is a personal
+number too, and flagging that would make the app useless.
+
+So `senderSignal.risk === 'high'` carries heavy weight **only in combination
+with the `authority` tactic** (§4 override rule 3). On its own, a personal
+number is worth a small nudge and a neutral note, nothing more.
+
+The pairing is the signal: **claiming to be a bank + not being able to send like
+one.** Neither half means much alone.
+
+#### A registered header is not a free pass
+
+`dlt_header` reduces the score modestly. It never forces `safe` and never
+short-circuits the tactic analysis. Header spoofing and misuse of legitimately
+registered headers both happen, and a scam message that reaches the user through
+a real header is exactly the case where our text analysis has to still work.
+
+**Rule:** the sender signal may raise the verdict decisively. It may only lower
+it modestly.
+
+#### Sender is optional everywhere
+
+The user may not have the sender, may not think to enter it, or may be pasting
+from WhatsApp where there is no header at all. Listen mode has no sender by
+definition. When `sender` is absent:
+
+- `senderSignal.kind === 'unknown'`, `risk === 'none'`
+- No override rule fires
+- No score adjustment in either direction
+- The SenderCard does not render
+
+Detection without a sender is exactly as good as it was before this feature. The
+sender is a bonus signal, never a prerequisite.
+
+---
+
 ### `nextMove` — required on every result
 
 `DetectionResult.nextMove` (§7) is **always populated**, including on `safe`
@@ -492,10 +584,15 @@ export interface Detector {
   readonly id: EngineId
   /** Cheap, non-throwing capability probe. Never downloads anything. */
   isAvailable(): Promise<boolean>
-  /** Analyse text. See the engine contract below. */
-  detect(text: string, signal: AbortSignal): Promise<DetectionResult>
+  /** Analyse a message. See the engine contract below. */
+  detect(input: DetectionInput, signal: AbortSignal): Promise<DetectionResult>
 }
 ```
+
+`DetectionInput` (§7) carries the message text plus the **optional** sender
+string. It is an object rather than positional arguments specifically so that a
+future signal can be added without changing the signature of three engines and
+every call site.
 
 ### The engine contract — frozen, mandatory for all three implementations
 
@@ -516,7 +613,7 @@ export interface Detector {
 ```ts
 // src/detector/orchestrator.ts
 export async function analyze(
-  text: string,
+  input: DetectionInput,
   preference: 'local' | 'cloud',
   signal: AbortSignal,
 ): Promise<DetectionResult>
@@ -524,14 +621,24 @@ export async function analyze(
 
 Behaviour, in order:
 
-1. Select the primary engine from the user's switch (`preference`). **Default is
+1. **Classify the sender deterministically** via `classifySender` (§5.5). This
+   happens once, in the orchestrator, before any engine runs — so all three
+   engines receive the same `SenderSignal` as an input fact rather than each
+   deriving it.
+2. Select the primary engine from the user's switch (`preference`). **Default is
    `local`** (D6).
-2. If `await primary.isAvailable()` is false, skip to step 4.
-3. Race `primary.detect(text, signal)` against the timeout budget for that
-   engine (§8). On success, return the result.
-4. **Fall back to `RuleDetector`.** It is synchronous, always available, and
-   cannot fail. Return its result.
-5. Stamp `engineUsed` and `latencyMs` on whatever is returned.
+3. If `await primary.isAvailable()` is false, skip to step 5.
+4. Race `primary.detect(input, signal)` against the timeout budget for that
+   engine (§8). On success, take the result.
+5. **Fall back to `RuleDetector`.** It is synchronous, always available, and
+   cannot fail. Take its result.
+6. Attach the `SenderSignal`, apply the §4 override rules (including the
+   impersonation mismatch, which depends on it), and stamp `engineUsed` and
+   `latencyMs`.
+
+Step 1 is deliberate: the sender check is the one part of detection that is
+identical and exact across every engine, including the fallback. Even a total
+engine failure still produces a correct sender verdict.
 
 **Fallback is silent.** The user is never shown an error, a retry prompt, a
 degraded-mode banner, or the word "offline" as a consequence of fallback. They
@@ -568,6 +675,33 @@ export type EngineId = 'local' | 'cloud' | 'rules'
 
 export type TacticName = 'authority' | 'urgency' | 'isolation' | 'extraction'
 
+/** What the user gives us to analyse. Sender is always optional (§5.5). */
+export interface DetectionInput {
+  text: string
+  /** Sender ID or number as the user typed it. Absent is normal. */
+  sender?: string
+}
+
+export type SenderKind =
+  | 'dlt_header'      // VM-SBIINB — TRAI-registered, the shape of a real one
+  | 'shortcode'       // 5-6 digits
+  | 'phone_number'    // 10-digit Indian mobile (6-9 lead), optional +91 / 0
+  | 'telemarketer'    // 140-prefixed
+  | 'international'   // + and a country code that is not +91
+  | 'email_or_other'
+  | 'unknown'         // not provided — never penalised
+
+export type SenderRisk = 'high' | 'medium' | 'none'
+
+export interface SenderSignal {
+  /** Exactly what the user typed, for display. */
+  raw: string
+  kind: SenderKind
+  risk: SenderRisk
+  /** One plain-language sentence. Empty when kind is 'unknown'. */
+  note: string
+}
+
 /** A phrase in the user's message that triggered a tactic. */
 export interface Evidence {
   /** Exact substring as it appears in the input, verbatim. */
@@ -595,6 +729,11 @@ export interface DetectionResult {
    */
   confidence: number
   tactics: Tactic[]
+  /**
+   * Always present. `kind: 'unknown'` when the user gave no sender.
+   * Classified deterministically in the orchestrator, never by a model (§5.5).
+   */
+  senderSignal: SenderSignal
   /** 1-2 sentences, plain language, no jargon. */
   explanation: string
   /** What the sender wants next. Always populated, including on 'safe'. */
@@ -616,7 +755,10 @@ calls before returning:
   its evidence collected inside it.
 - `explanation` and `nextMove` are non-empty after trimming.
 - Every `Evidence.phrase` is non-empty.
-- If `verdict === 'danger'` then `tactics.length >= 1` (§4 rule 3).
+- `senderSignal` is present, and its `kind`/`risk` pair is consistent with the
+  §5.5 table (a `dlt_header` may not carry `risk: 'high'`).
+- If `verdict === 'danger'` then `tactics.length >= 1` **or**
+  `senderSignal.risk === 'high'` (§4 rule 4) — there must be something to show.
 
 A result failing validation is treated as an engine failure: the engine rejects,
 and the orchestrator falls through to rules. It is never patched up and shown.
@@ -835,6 +977,17 @@ type TermSet = Record<TacticName, Term[]>
 | `authority` | Medium | Real couriers and banks do identify themselves. |
 | `urgency` | Lowest | Real messages have real deadlines. Weak on its own; meaningful in combination. |
 
+**Sender contribution (§5.5).** The `SenderSignal` is computed by the
+orchestrator and handed to this engine; it does not classify the sender itself.
+
+| Signal | Effect on score |
+|---|---|
+| `risk: 'high'` **and** `authority` present | Large positive — the impersonation mismatch. §4 rule 3 also fires. |
+| `risk: 'high'`, no `authority` | Small positive nudge only. A personal number is normal for a WhatsApp forward (§5.5 context rule). |
+| `risk: 'medium'` | Small positive nudge. |
+| `kind: 'dlt_header'` | **Modest negative.** Never zeroes the score, never forces `safe` (§5.5). |
+| `kind: 'unknown'` | Zero. No adjustment in either direction. |
+
 #### Negative terms — the false-positive defence
 
 This is what keeps a genuine bank SMS out of the red, and it is the measure that
@@ -875,6 +1028,15 @@ single exported constant `SYSTEM_PROMPT` plus a `buildUserPrompt(text)`.
 - Define the four tactics (§5) in the same words the spec uses.
 - Require the output to be **JSON only** — no prose, no markdown fence, no
   preamble.
+- **State the sender classification as a given fact**, not a question. The user
+  prompt includes a line such as
+  `Sender: +91 98xxxxxxxx (a personal mobile number — not a registered business sender)`
+  when a sender was supplied, and omits the line entirely when it was not.
+  Instruct the model to weigh a personal-number sender heavily **only when the
+  message claims to be a bank, government body, or company** (§5.5 context
+  rule), and to reflect that contradiction in `explanation` when it applies.
+  The model must not attempt to classify the sender itself — that has already
+  been done exactly, in code.
 - Require every `evidence.phrase` to be **an exact substring copied verbatim
   from the message**, never paraphrased. Say this twice; it is the instruction
   small models most often ignore, and paraphrase is what breaks highlighting.
@@ -907,8 +1069,9 @@ single exported constant `SYSTEM_PROMPT` plus a `buildUserPrompt(text)`.
 2. Extract the outermost `{...}` block.
 3. `JSON.parse`.
 4. Map to `DetectionResult`: resolve each evidence string via `resolveEvidence`,
-   attach `label` from the copy deck (§10.7), derive `verdict` from `confidence`
-   through the shared §4 mapping including override rules.
+   attach `label` from the copy deck (§10.7), attach the `SenderSignal` supplied
+   by the orchestrator, and derive `verdict` from `confidence` through the shared
+   §4 mapping including all four override rules.
 5. `validateResult()`.
 6. **On any failure:** one repair attempt — re-prompt with the invalid output and
    an instruction to return only valid JSON matching the schema. If that also
@@ -917,7 +1080,8 @@ single exported constant `SYSTEM_PROMPT` plus a `buildUserPrompt(text)`.
 **The model never chooses the verdict string.** It reports `confidence` and
 tactics; §4's shared mapping decides `danger`/`caution`/`safe`. This keeps the
 three engines consistent with each other and keeps the override rules (extraction
-floor, two-tactic rule, empty-tactic ceiling) authoritative.
+floor, three-tactic rule, impersonation mismatch, empty-finding ceiling)
+authoritative.
 
 ---
 
@@ -1133,8 +1297,8 @@ src/ui/tokens.css        design tokens — the redesign surface
 src/ui/primitives/       Button · Card · Sheet · Switch · Chip · Progress ·
                          Skeleton · Icon
 src/ui/components/       VerdictBanner · HighlightedMessage · TacticCard ·
-                         EngineSwitch · DevicePanel · PresetList · ListenWave ·
-                         ModelProgress
+                         SenderCard · SenderField · EngineSwitch · DevicePanel ·
+                         PresetList · ListenWave · ModelProgress
 src/screens/             Home · Analyzing · Verdict · Listen · Settings
 src/detector/            engines, orchestrator, types, prompt, rules
 src/device/              metrics.ts
@@ -1245,11 +1409,25 @@ Each screen: purpose, anatomy top-to-bottom, states, interactions, pattern.
 **Anatomy:**
 1. App title (small; brand, not chrome)
 2. Paste field — large, auto-focused, min 6 lines visible, `--fs-md` minimum
-3. Primary action — "Check this message", full-width, thumb-reachable bottom
-4. Preset chips — "Try an example": one scam, one legit bank SMS
-5. Engine switch — On-device ⇄ Cloud, with a one-line privacy caption
-6. Device panel, collapsed — one summary line, tap to expand
-7. Listen mode entry point
+3. **SenderField** — one short optional input, label `sender_label`, placeholder
+   `sender_placeholder`. Sits directly under the paste field. Never required,
+   never blocks the primary action (§5.5).
+4. Primary action — "Check this message", full-width, thumb-reachable bottom
+5. Preset chips — "Try an example": one scam, one legit bank SMS
+6. Engine switch — On-device ⇄ Cloud, with a one-line privacy caption
+7. Device panel, collapsed — one summary line, tap to expand
+8. Listen mode entry point
+
+**SenderField behaviour:**
+- Optional, and visibly optional — the label says so. A required-looking field
+  the user cannot fill is worse than no field.
+- Live classification as they type: once the input matches a known shape, show a
+  quiet inline hint (`sender_hint_registered` / `sender_hint_personal`). This
+  teaches the DLT distinction *before* the verdict, which is the part most users
+  have never heard of.
+- Presets fill it automatically — the scam preset with a 10-digit number, the
+  legit preset with a real DLT header. This is what makes the contrast land in
+  the demo (§13).
 
 **Layout rule:** the primary action sits in the bottom third. The whole flow must
 be operable with one thumb on a large phone.
@@ -1301,17 +1479,30 @@ The most important screen in the product.
    highlighted inline (§7). This is the proof.
 3. **Unresolved evidence chips** — any evidence with `start === -1`, as chips
    below the message, labelled `phrases_found`.
-4. **TacticCard list** — one card per detected tactic: label, plain-language
+4. **SenderCard** — renders whenever `senderSignal.kind !== 'unknown'`, and sits
+   **first in the findings list, above the tactic cards**. Shows the sender as
+   typed, what kind of sender it is, and the plain-language note. Styled like a
+   TacticCard so it reads as a finding, but visually distinguished by a sender
+   glyph rather than a tactic glyph.
+   - `risk: 'high'` + `authority` present → the strong copy
+     (`sender_mismatch_note`), in the danger role. This is the single most
+     persuasive card in the app.
+   - `risk: 'high'` alone → neutral note (`sender_personal_note`), caution role.
+   - `kind: 'dlt_header'` → reassuring note (`sender_registered_note`), safe
+     role — shown even on a `danger` verdict, because "registered sender but the
+     text is still manipulative" is exactly the case a user needs explained.
+5. **TacticCard list** — one card per detected tactic: label, plain-language
    note, and its evidence phrases. Absent entirely on a clean `safe` result.
-5. **"What they want next"** — `nextMove`, in its own emphasised block. On a
+6. **"What they want next"** — `nextMove`, in its own emphasised block. On a
    `safe` verdict this still renders, with the reassuring variant.
-6. **Actions** — "Check another message" (primary), "Share this result"
+7. **Actions** — "Check another message" (primary), "Share this result"
    (secondary, stretch).
 
 **Scroll behaviour:** the VerdictBanner scrolls away normally — do not pin it.
 A sticky red bar over a scrolling message is oppressive and fights principle 4.
 
-**States:** danger · caution · safe · safe-with-no-tactics (cards omitted).
+**States:** danger · caution · safe · safe-with-no-tactics (cards omitted) ·
+no-sender-supplied (SenderCard omitted).
 
 **Pattern:** result screen with a strong status header.
 
@@ -1418,6 +1609,16 @@ later translation. Lives in `src/ui/copy.ts` as a flat exported object.
 | `tactic_extraction` | Getting what they came for |
 | `next_move_title` | What they want next |
 | `phrases_found` | Phrases we flagged |
+| `sender_label` | Who sent it? (optional) |
+| `sender_placeholder` | e.g. VM-SBIINB or +91 98765 43210 |
+| `sender_hint_registered` | Registered business sender |
+| `sender_hint_personal` | Personal mobile number |
+| `sender_card_title` | Who it came from |
+| `sender_mismatch_note` | This claims to be from {institution}, but it came from a personal mobile number. Real banks and government offices can only send from a registered sender ID — they cannot text you from a normal number. |
+| `sender_personal_note` | This came from a personal mobile number, not a registered business sender. |
+| `sender_registered_note` | This came from a registered business sender ID, which is how real companies send SMS. |
+| `sender_international_note` | This came from an international number. |
+| `sender_telemarketer_note` | This came from a registered telemarketing number. |
 | `engine_title` | Privacy |
 | `engine_local` | On-device |
 | `engine_cloud` | Cloud |
@@ -1515,13 +1716,16 @@ miserable over remote-control.
 **Goal:** a working detector with zero dependencies, and a test that pins it.
 
 **Do:** `src/detector/types.ts` exactly as §7. `validate.ts`. `verdict.ts` (the
-§4 mapping plus override rules). `evidence.ts` (§7 resolution algorithm).
-`terms.ts` (§8.3 term sets, seeded from §5 and the corpus). `rules.ts`.
-`/corpus/*.json` (§12) — seed with whatever Maharishi has; the harness must run
-on a partial corpus. `npm run test:corpus`.
+§4 mapping plus all four override rules). `evidence.ts` (§7 resolution
+algorithm). **`sender.ts` (§5.5 `classifySender`)**. `terms.ts` (§8.3 term sets,
+seeded from §5 and the corpus). `rules.ts` including the sender contribution
+table. `/corpus/*.json` (§12) — seed with whatever Maharishi has; the harness
+must run on a partial corpus. `npm run test:corpus`.
 
 **Exit criterion:** `npm run test:corpus` runs and **passes the false-positive
-gate** — no legit message returns `danger`.
+gate** — no legit message returns `danger`. Sender classification unit tests
+pass for every row of the §5.5 table, including `+91`-prefixed, `0`-prefixed and
+space-separated number formats.
 
 **Why first:** from here on there is always something demoable, and the LLM
 engines are never on the critical path to *having something to show*.
@@ -1570,8 +1774,9 @@ is the version of this that fails, and D8 promises a redesign.
 **Goal:** the most important screen, driven by fixture data.
 
 **Do:** `VerdictBanner`, `HighlightedMessage` (§7 merge algorithm), `TacticCard`,
-the `nextMove` block. Drive it from static fixtures — not a live engine — so the
-screen can be built and reviewed without inference in the loop.
+`SenderCard` (§10.6), the `nextMove` block. Drive it from static fixtures — not a
+live engine — so the screen can be built and reviewed without inference in the
+loop. Include a fixture for each SenderCard variant, and one with no sender.
 
 **Exit criterion:** every corpus message rendered through fixtures highlights
 correctly; **the concatenated segments equal the original text for all of them**
@@ -1584,12 +1789,13 @@ on the phone.
 
 **Goal:** close the loop.
 
-**Do:** `Home.tsx` with paste field, presets, primary action, the Analyzing
-inline state, `EngineSwitch`. Wire to the orchestrator (rules + cloud only at
-this point).
+**Do:** `Home.tsx` with paste field, `SenderField` (§10.6), presets, primary
+action, the Analyzing inline state, `EngineSwitch`. Wire to the orchestrator
+(rules + cloud only at this point).
 
 **Exit criterion:** paste → verdict works end-to-end on the phone, one-handed,
-for both a scam preset and the legit preset.
+for both a scam preset and the legit preset, with each preset auto-filling its
+sender and the SenderCard rendering correctly for both.
 
 **This is the first genuinely demoable build.** Commit it and be glad it exists.
 
@@ -1719,13 +1925,25 @@ so it stays boring on purpose.
   {
     "id": "scam-en-001",
     "lang": "en",
+    "sender": "+91 98765 43210",
     "text": "Dear customer, your SBI account will be blocked...",
     "expect": "danger",
     "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "phone_number",
     "source": "received by team member, Aug 2026"
   }
 ]
 ```
+
+**`sender` is required in the corpus even though it is optional in the app.**
+Capturing the real sender is the whole point of collecting real messages — a
+corpus of scam texts with the senders stripped cannot test §5.5 at all, and the
+sender is the field a contributor is most likely to forget. Legit entries carry
+their real DLT headers (`VM-SBIINB`, `AD-HDFCBK`); scam entries carry the real
+originating number, digits masked only if the contributor prefers.
+
+At least three entries must have `"sender": null` so the no-sender path stays
+tested.
 
 | File | Contents | Target count |
 |---|---|---|
@@ -1774,9 +1992,15 @@ gate the build on a non-deterministic engine.
 Time is short; these three earn their keep:
 
 - `evidence.ts` — each resolution strategy, and the give-up path.
+- `sender.ts` — every row of the §5.5 table, plus the formats a real user
+  actually types: `+91 98765 43210`, `+919876543210`, `09876543210`,
+  `9876543210`, `VM-SBIINB`, `AD-HDFCBK`, `140xxxxxxx`, empty string, and
+  garbage. This is pure string handling with no ambiguity, so it should be
+  exhaustively correct rather than approximately correct.
 - `HighlightedMessage` segment merge — **assert that concatenated output equals
   the input** for every corpus message, including overlapping and nested spans.
-- `verdict.ts` — the §4 threshold table plus all three override rules.
+- `verdict.ts` — the §4 threshold table plus all four override rules, including
+  the impersonation mismatch with and without a sender present.
 
 ### On-device manual matrix
 
@@ -1812,12 +2036,18 @@ Every beat below is a thing that works, not a thing we hope works.
 
 | # | Beat | Time | What is said |
 |---|---|---|---|
-| 1 | Paste a real scam SMS. Red verdict, tactics highlighted. | ~15s | "This is a real message someone in Bengaluru received last month. Kavach reads it and shows you the trap — the fake authority, the deadline, and the OTP they actually want." |
-| 2 | Paste a **real bank SMS**. Green verdict. | ~10s | "And this is a genuine SBI message. It doesn't just flag everything red — that's the hard part." |
+| 1 | Paste a real scam SMS **with its sender**. Red verdict, tactics highlighted, SenderCard on top. | ~20s | "This is a real message someone in Bengaluru received last month. Kavach shows you the trap — the fake authority, the deadline, the OTP they want. And look at the top: it claims to be SBI, but it came from a personal mobile number. A real bank *cannot* text you from a normal number — they're legally required to use a registered sender ID. That one mismatch is the tell." |
+| 2 | Paste a **real bank SMS** with its real `VM-SBIINB` header. Green verdict. | ~12s | "And this is a genuine SBI message, from the registered sender. Green. It doesn't just flag everything red — that's the hard part." |
 | 3 | **Open the device panel while a Max-tier analysis runs.** | ~15s | "That was the AI running on this phone. Two gigabytes of model, cached on device, zero bytes sent." |
 | 4 | **Airplane mode on. Paste a scam message. Same verdict.** | ~25s | "Nothing to fall back on. No network at all. Same answer — because the model is on the phone." |
 | 5 | Listen mode: play a recorded scam call on speaker from a second phone. Live transcript, mid-call interrupt. *(Cut if P10 was killed.)* | ~30s | "And it works on live calls through the speaker, on the same detector." |
 | 6 | Close. | ~10s | "Google ships this only on Pixel 9 and above, in English, off by default. We're building it for everyone else." |
+
+**Beats 1 and 2 together are the sender story**, and it is the most
+locally-credible thing in the demo: an Indian judge knows immediately that a
+bank cannot SMS from a personal number, and most people outside India have never
+heard of DLT headers. Lead with the mismatch, then let beat 2's registered
+header make the contrast concrete.
 
 **Beat 2 is the one that wins the argument.** Anyone can build something that
 says "scam" every time. Showing a legitimate message coming back green is the
@@ -1858,6 +2088,9 @@ Pre-decided, so nobody has to improvise at 3am.
 | Web Speech needs network / stops on silence | High | Restart on `end`. Listen mode is excluded from the offline claim (§10.6). P10 has a kill-criterion. |
 | OpenRouter rate limit or key expiry | Medium | Silent fallback to rules (§6). Cloud is not the demo path anyway (D6). |
 | False positives on legit bank SMS | Medium | The hard gate in §12. Negative terms in §8.3. Tuned at P11. |
+| Sender check flagging ordinary WhatsApp forwards from friends | **High if built naively** | The §5.5 context rule: a personal number only weighs heavily *with* the `authority` tactic. Covered by corpus entries of harmless personal-number messages. |
+| Users leave the sender field blank | Certain, and fine | Sender is optional everywhere (§5.5). Detection without it is exactly as good as before. Presets fill it so the demo always shows it. |
+| Over-trusting a registered DLT header | Medium | §5.5: the header may only lower the score modestly, never force `safe`. Header spoofing and misused registered headers both occur. |
 | Decorative animation stealing frame time from inference | Medium | §10.4 animation budget — effects pause during analysis. |
 | UI polish consuming time P6/P7 need | **High** | The §11 priority rule. P3 gives a system so polish is cheap later; P11 is the only phase where polish is the job. |
 | Red Light window blocking laptop access | Certain | Do installs, model downloads and deploys during Green Light. Red Light is for coding against an already-working setup. |
@@ -1975,6 +2208,50 @@ Mobbin for proven mobile patterns. Because a redesign is expected rather than
 hypothetical, the layering rule (§10.3) is frozen and the token file is the
 single redesign surface. See §10, §15.
 
+### 2026-08-29 — D9, sender origin as a first-class signal
+
+**D9 · Sender origin (DLT header vs personal number) is a core detection
+signal.**
+
+Under TRAI's DLT regime, Indian institutions must send SMS through a registered
+alphanumeric header (`VM-SBIINB`). Scammers send from ordinary 10-digit mobile
+numbers, because registering a header requires a real business entity. A message
+claiming to be from a bank that arrived from a personal number is a contradiction
+on its face — the highest-signal, lowest-ambiguity check available in this
+market, and it costs a regex.
+
+Design choices made with it, and why:
+
+- **Not a fifth tactic.** Tactics are manipulation *inside the text*, evidenced
+  by highlightable character spans. Sender origin is envelope metadata with no
+  span. Making it a tactic would corrupt the `Evidence` contract, so it is a
+  separate `senderSignal` field rendered as its own card (§5.5, §10.6).
+- **Classified deterministically in the orchestrator, never by the model.** A
+  regex parses a number exactly and free; a 1B model does not. The LLM receives
+  the classification as a stated fact. This also means the check is identical
+  across all three engines, including the rules fallback.
+- **Context-gated.** A personal number only weighs heavily when the `authority`
+  tactic is present (§4 override rule 3). Without that gate, every WhatsApp
+  forward from a friend would be flagged and the app would be useless.
+- **Asymmetric.** A high-risk sender may raise the verdict decisively; a
+  registered header may only lower it modestly. Header spoofing and misuse of
+  legitimately registered headers both happen, and a scam arriving through a real
+  header is precisely where the text analysis still has to work.
+- **Optional everywhere.** Absent sender means no adjustment in either
+  direction. Listen mode has no sender at all.
+
+**Contract changes this forced** (frozen sections, edited per §0): `Detector.detect`
+now takes a `DetectionInput` object rather than a bare string — chosen so a
+future signal costs no further signature churn; `DetectionResult` gains
+`senderSignal`; §4 gains override rule 3 and its rule 4 now accepts a high-risk
+sender as showable evidence. Free to do now because P0 has not started.
+
+**Also corrected in this pass:** §4's second override rule was labelled "Two-tactic
+rule" while its text said "three or more". It is now "Three-tactic rule". The
+text was always the intended behaviour.
+
+---
+
 **Scoping note · call audio.**
 Kavach analyses messages, not live call audio, because Android does not permit
 third-party access to the call-audio stream without the default-dialer role.
@@ -1993,6 +2270,9 @@ See §1.
 | **Evidence** | An exact phrase from the user's message that triggered a tactic, with character offsets so it can be highlighted. See §7. |
 | **Engine** | An implementation of the `Detector` interface: `local`, `cloud`, or `rules`. See §6. |
 | **Orchestrator** | The single function that picks an engine, enforces the timeout, and falls back silently. See §6. |
+| **DLT** | Distributed Ledger Technology — TRAI's registration regime for Indian commercial SMS. Senders must register a header and their message templates. |
+| **DLT header / sender ID** | The registered alphanumeric sender a real institution must use, e.g. `VM-SBIINB`. Cannot be obtained without a registered business entity — which is why scammers use plain mobile numbers instead. See §5.5. |
+| **Impersonation mismatch** | The §4 override rule: the message claims institutional authority but arrived from a personal number. The strongest single combination in the Indian SMS landscape. |
 | **Corpus** | The JSON test set of real scam and legitimate messages. See §12. |
 | **False-positive gate** | The hard test rule that no legitimate message may return `danger`. The metric that actually matters. See §12. |
 | **Tier** | Which on-device model size is loaded: `low`, `standard`, `max`. See §8.1. |

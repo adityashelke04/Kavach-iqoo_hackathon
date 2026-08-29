@@ -28,10 +28,13 @@ Do not read the whole spec first. Do not build ahead of your phase.
 4. **Every engine returns a result and never throws.** Failure rejects the
    promise; the orchestrator catches and falls back silently. (§6)
 5. **On-device is the default and is never traded away for convenience.** (D6, §9)
-6. **UI layering: screens compose, components render, the detector decides.**
+6. **Sender origin is classified in code, never by a model**, and only weighs
+   heavily alongside the `authority` tactic — otherwise every WhatsApp forward
+   gets flagged. Sender is optional everywhere. (D9, §5.5)
+7. **UI layering: screens compose, components render, the detector decides.**
    No component imports an engine. No component hard-codes a colour, radius or
    duration — tokens only. (§10.3, §10.2)
-7. **Original work only**, written inside the event window. npm packages and
+8. **Original work only**, written inside the event window. npm packages and
    attributed React Bits components are fine; carried-in project code is not. (§0)
 
 ## How to work here
