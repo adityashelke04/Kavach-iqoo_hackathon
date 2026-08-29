@@ -184,6 +184,7 @@ the MVP column is not fully green, do not build it.
 | PWA install + offline operation | The airplane-mode demo beat depends on it. |
 | Listen mode | Chosen as MVP (D3). Timeboxed with a kill-criterion (§11). |
 | Triple-tap failsafe | Insurance against a live failure on stage. |
+| What happens next (D17) | `nextMove` says what they want; this says what they will say to get it. Three predicted lines, derived from the tactics already found, shown on Verdict and — the reason it exists — inside the Listen interrupt while the call is still live. Silent when nothing matches. See §10.6. |
 | Report handoff (D16) | A caught scam has to end somewhere. Kavach writes the complaint on the device and opens the right official portal — 1930, Chakshu, or 1909 — chosen by what has already been sent. It never submits anything, so §2's constraints hold. See §10.6. |
 
 ### Stretch — only once every MVP row is green
@@ -1691,6 +1692,37 @@ no-sender-supplied (SenderCard omitted).
 
 ---
 
+#### What usually happens next — `src/ui/components/NextLines.tsx` (D17)
+
+**Purpose:** answer the question `nextMove` raises — *and then what?* — by
+naming the sender's next three lines before they arrive.
+
+**Where it renders:**
+- **Verdict**, immediately after "What they want next".
+- **The Listen interrupt**, below `nextMove`, **while the call is still live**.
+  This is the placement the feature exists for: a prediction the caller then
+  fulfils, out loud, ends the call.
+
+**Anatomy:** heading · one lead line · three ordered steps · one closing line
+naming what the third step costs.
+
+**Rules:**
+- **Rendered only when a script matched, and never on `safe`.** No match means
+  no section — never a generic substitute (D17).
+- **The heading changes on `caution`**, which has concluded nothing:
+  "If this is what it looks like, this is what comes next".
+- **The steps predict the sender.** Future tense, never an imperative — advice
+  lives in `nextMove` and in the report's urgent steps (D16).
+- **Not on the report receipt.** A prediction is not evidence and does not go
+  to a police portal (D16, D17).
+- **The 1–3 ordinals are the sender's moves, not a rating (§4).** A progress
+  indicator through the script — "step 2 of 3 has happened" — is forbidden: it
+  would be a meter, and would invite negotiation.
+
+**States:** matched-danger · matched-caution · no match (absent) · safe (absent).
+
+---
+
 #### Report — `src/screens/Report.tsx` (D16)
 
 **Purpose:** turn a verdict into a filed complaint. Reached only from a `danger`
@@ -3095,6 +3127,83 @@ discrimination this product is judged on.
 to §10.7 and a `test:report` gate to §12. It adds nothing to `src/detector/**`
 and changes no engine, no prompt and no term list. The full design is in
 `docs/superpowers/specs/2026-08-30-report-handoff-design.md`.
+
+---
+
+### 2026-08-30 — D17 · Name the next three lines before they arrive
+
+**D17 · Kavach predicts the rest of the script, not just the current message.**
+
+A scam is a script. The person running it has said these lines a thousand times;
+the person receiving them is hearing them for the first time. That asymmetry is
+the con. Everything else — the authority, the urgency, the isolation — is
+delivery.
+
+`nextMove` (§5) already answers *what do they want*. It does not answer the
+question a frightened person asks immediately afterwards, which is **and then
+what?** Naming the next three lines answers it, and does something no verdict
+can: when the caller says line two out loud and the person has already read it
+on their phone, the spell breaks in the middle of the call. A verdict tells you
+what happened. A prediction that comes true tells you who you are talking to.
+
+**It is derived, not detected.** `src/predict/` is a pure function over the
+tactics the detector already found, the message text, and the channel. It never
+changes a verdict, never touches `src/detector/**`, adds nothing to the frozen
+§7 contract, and behaves identically behind all three engines. Being pure is
+also why it works with the network cut — `test:offline` asserts it.
+
+**Silence beats a generic script.** When nothing matches confidently, the
+matcher returns `null` and nothing renders. A prediction like "they'll ask you
+for money" is unfalsifiable, teaches nothing the verdict did not already say,
+and — this is the actual risk — **the first prediction that fails in front of a
+user discredits every other one.** A marker must match *and* be corroborated by
+at least one further signal; a stray word cannot carry a whole script.
+
+**No legitimate message may ever be handed one.** Telling somebody that a real
+bank alert is about to become a fraud is a worse failure than missing a scam,
+and it is the failure this feature makes newly possible. `npm run test:predict`
+runs every legitimate message in the corpus through the matcher and requires
+zero matches. It held through a round of deliberate marker-loosening that took
+scam coverage from 57% to 100%, which is the evidence that the separation is
+real and not an artefact of tight regexes.
+
+**Coverage is reported, never enforced.** The gate prints how many scam corpus
+messages get a script and does not fail on it, precisely so that no future
+session raises the number by writing a vague catch-all. The only floor is that
+the matcher matches something at all.
+
+**The lines predict the sender; they never instruct the reader.** "They'll ask
+you to go somewhere alone" is a prediction. "Do not go anywhere alone" is
+advice, and advice already has two homes — `nextMove`, and the report's urgent
+steps (D16). Mixing them would put a guess where a person expects an
+instruction. The gate asserts every step is in the future tense and that none
+begins an imperative.
+
+**It is not evidence, so it is not on the report.** The receipt (D16) carries
+only what was actually found in the message. A prediction about what has not
+happened yet does not belong in a document going to a police portal, and adding
+it there would be the single easiest way to discredit the whole complaint.
+
+**Two placements, and the second is the point.** On Verdict it sits directly
+after "what they want next", answering the question that one raises. In Listen
+mode it renders inside the full-screen interrupt **while the call is still
+live** — which is the placement this whole idea exists for.
+
+**A caution verdict gets a different heading.** "What usually happens next"
+asserts; a caution verdict has concluded nothing, so it reads "If this is what
+it looks like, this is what comes next" instead. Same script, honest framing.
+
+**On §4:** the steps are numbered 1–3. Those are ordinals counting the sender's
+moves, exactly as the report's "do this now" list counts the reader's. §4
+forbids a number that *rates the message* — a score, a percentage, a count of
+findings. It does not forbid ordering a sequence. No progress indicator through
+the script may ever be added: "step 2 of 3 has happened" would be a meter, and
+would invite the reader to negotiate with it.
+
+**Scope:** adds a row to §3's MVP table, a §10.6 subsection, copy keys in
+§10.7, and `npm run test:predict` to §12. Adding a playbook is cheap; inventing
+one is a lie told to somebody who is about to act on it, so every entry in
+`playbooks.ts` must be an arc that actually runs.
 
 ---
 

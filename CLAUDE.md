@@ -64,6 +64,8 @@ npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
 npm run test:feedback # adaptive weighting, and that it cannot break the gate (D14)
 npm run test:report   # report handoff: no total, nothing invented, every
                       # destination official and reachable-shaped (D16)
+npm run test:predict  # predicted scripts: never fire on a legitimate message,
+                      # predict the sender rather than instruct the reader (D17)
 npm run test:offline  # PWA: manifest installable, every icon really served,
                       # worker takes control, and a cold launch with the network
                       # cut still reaches a correct verdict (P8)
@@ -89,6 +91,12 @@ The report handoff (D16) is built: a caught scam now ends in a complaint the
 user files themselves on 1930 / Chakshu / 1909. Kavach never submits anything —
 read D16 before touching it, especially before adding a submit button or a
 count of findings to the receipt.
+
+"What usually happens next" (D17) is built: three predicted lines, derived in
+`src/predict/` from tactics already found, shown on Verdict and inside the
+Listen interrupt mid-call. It is silent when nothing matches — never widen a
+playbook into a catch-all to raise coverage, and never let one fire on a
+legitimate message. `test:predict` guards both.
 
 P3 (CloudDetector) is done. P8 (PWA + offline) is built and passes
 `test:offline`, but like P2 and P7 it is **unverified on the phone** — all three

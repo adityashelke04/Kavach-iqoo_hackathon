@@ -4,6 +4,9 @@ import { analyzeWithRules } from '../detector/rules.ts'
 import type { DetectionResult, Tactic } from '../detector/types.ts'
 import { buildSegments, resolveAllEvidence } from '../detector/evidence.ts'
 import { Findings } from '../ui/components/index.tsx'
+import { NextLines } from '../ui/components/NextLines.tsx'
+import { predictNextLines } from '../predict/match.ts'
+import type { Prediction } from '../predict/types.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
 import {
@@ -232,10 +235,20 @@ function Transcript({
 
 function Interrupt({
   result,
+  prediction,
   onDismiss,
   onExit,
 }: {
   result: DetectionResult
+  /**
+   * The predicted script (D17), when one matched the transcript so far.
+   *
+   * This is the screen the whole prediction idea is for. The call is still
+   * live: naming the next three lines *before* the caller says them turns a
+   * warning into something the person can check for themselves, in real time.
+   * When the caller then says one of them, the call is over.
+   */
+  prediction?: Prediction | null
   onDismiss: () => void
   onExit: () => void
 }) {
@@ -254,6 +267,8 @@ function Interrupt({
           <h2 className="panel__title">{copy.next_move_title}</h2>
           <p className="panel__lead">{result.nextMove}</p>
         </section>
+
+        {prediction && <NextLines prediction={prediction} verdict={result.verdict} />}
       </div>
 
       <div className="screen__footer">
@@ -657,6 +672,14 @@ export function Listen({
     return (
       <Interrupt
         result={result}
+        // channel 'voice': speech recognition spells acronyms out and drops
+        // punctuation, and a couple of playbooks read differently on a call
+        // than in an SMS (§5.6).
+        prediction={predictNextLines({
+          text: finalText,
+          tactics: result.tactics,
+          channel: 'voice',
+        })}
         onDismiss={() => setInterrupted(false)}
         onExit={() => {
           stop()
@@ -836,7 +859,15 @@ export function Listen({
             />
 
             {phase === 'stopped' && result && (
-              <Findings result={result} text={finalText} />
+              <Findings
+                result={result}
+                text={finalText}
+                prediction={predictNextLines({
+                  text: finalText,
+                  tactics: result.tactics,
+                  channel: 'voice',
+                })}
+              />
             )}
           </>
         )}

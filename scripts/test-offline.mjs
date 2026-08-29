@@ -187,6 +187,17 @@ try {
   const marks = await page.$$eval('mark', (els) => els.length)
   check('evidence is highlighted offline', marks > 0, `${marks} spans`)
 
+  // D17: the predicted script is derived from the result, not fetched, so it
+  // has to survive the network being gone exactly as the verdict does.
+  const nextLines = await page.$('.next-lines')
+  check('the predicted script renders offline', nextLines !== null)
+  if (nextLines) {
+    check(
+      'it predicts three lines',
+      (await page.$$eval('.next-lines__step', (els) => els.length)) === 3,
+    )
+  }
+
   /* 6 - the report handoff builds with no network (D16) --------------------- */
   // The receipt and the complaint text are composed on the device from a result
   // already in memory, so the whole handoff has to survive airplane mode. Only

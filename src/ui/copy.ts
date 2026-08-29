@@ -120,6 +120,16 @@ export const copy = {
   engine_cloud_note: 'Faster on older phones. Your message is sent to be analysed.',
   cloud_unavailable: 'No connection — checking on your phone instead',
 
+  // --- What usually happens next (§10.6, D17) ------------------------------
+  // "Usually" is load-bearing. This is a prediction derived from the shape of
+  // the message, not something the detector found, and the copy has to say so
+  // without undermining itself. Two headings because a caution verdict has not
+  // concluded anything and must not be handed a confident narrative.
+  next_lines_title: 'What usually happens next',
+  next_lines_title_caution: 'If this is what it looks like, this is what comes next',
+  next_lines_lead:
+    'Scams follow a script. If the next thing they say is on this list, you already know how it ends.',
+
   // --- Report handoff (§10.6, D16) -----------------------------------------
   // The register here is deliberately a shade more formal than the rest of the
   // app: this screen is a document a person takes to an authority, and looking

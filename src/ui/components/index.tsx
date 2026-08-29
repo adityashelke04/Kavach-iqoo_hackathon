@@ -14,6 +14,8 @@ import {
   type FeedbackState,
 } from '../../detector/feedback.ts'
 import { TACTIC_NAMES } from '../../detector/types.ts'
+import type { Prediction } from '../../predict/types.ts'
+import { NextLines } from './NextLines.tsx'
 import { copy, TACTIC_LABELS } from '../copy.ts'
 import { getDeviceTelemetry, type DeviceTelemetry } from '../../device/telemetry.ts'
 import {
@@ -478,7 +480,21 @@ function LearnedSummary() {
  * proof in the reader's own words, then who sent it, then how it works, then
  * what to do. The engine detail comes last and closed.
  */
-export function Findings({ result, text }: { result: DetectionResult; text: string }) {
+export function Findings({
+  result,
+  text,
+  prediction,
+}: {
+  result: DetectionResult
+  text: string
+  /**
+   * The predicted script (D17), when one matched. Passed in rather than
+   * derived here: screens compose, components render (§10.3). Absent is the
+   * normal case for anything the playbooks do not recognise, and absent means
+   * nothing is shown — never a generic substitute.
+   */
+  prediction?: Prediction | null
+}) {
   const claimsAuthority = result.tactics.some((t) => t.name === 'authority')
   const unresolved = result.tactics.flatMap((t) =>
     t.evidence.filter((e) => e.start === -1),
@@ -517,6 +533,12 @@ export function Findings({ result, text }: { result: DetectionResult; text: stri
       {result.verdict !== 'safe' && <TacticList tactics={result.tactics} />}
 
       {result.verdict !== 'safe' && <NextMove text={result.nextMove} />}
+
+      {/* Immediately after "what they want next", because it answers the
+          follow-up question that one raises: and then what? (D17) */}
+      {result.verdict !== 'safe' && prediction && (
+        <NextLines prediction={prediction} verdict={result.verdict} />
+      )}
 
       <FeedbackPrompt result={result} />
 

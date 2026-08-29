@@ -2099,3 +2099,76 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* ==========================================================================
+   What usually happens next — §10.6, D17
+   Tokens only. The ordinals count the sender's moves, not the message's
+   riskiness — §4 is untouched, and test:predict guards the copy.
+   ========================================================================== */
+
+.next-lines__lead {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-muted);
+}
+
+.next-lines__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: next-line;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A ruled sequence rather than bullets: these arrive in order, and the rule
+   between them is what makes that legible at a glance. */
+.next-lines__step {
+  counter-increment: next-line;
+  position: relative;
+  padding: var(--sp-4) 0 var(--sp-4) var(--sp-8);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.next-lines__step:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.next-lines__step::before {
+  content: counter(next-line);
+  position: absolute;
+  left: 0;
+  top: var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--heat-border);
+  border-radius: var(--r-full);
+  background: var(--heat-tint);
+  color: var(--heat-on-tint);
+  font-size: 0.6875rem;
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.next-lines__step:first-child::before {
+  top: 0;
+}
+
+/* The line that says what the third step costs. Set apart, because it is the
+   part a person repeats to themselves afterwards. */
+.next-lines__ending {
+  margin: var(--sp-4) 0 0;
+  padding-top: var(--sp-4);
+  border-top: 1px dashed var(--border-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-normal);
+  color: var(--text);
+}

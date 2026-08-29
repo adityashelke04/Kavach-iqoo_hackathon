@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { DetectionResult } from '../detector/types.ts'
+import { predictNextLines } from '../predict/match.ts'
 import { Findings, VerdictBanner } from '../ui/components/index.tsx'
 import { copy, TACTIC_LABELS } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
@@ -28,6 +29,14 @@ export function Verdict({
 }) {
   const bannerRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
+
+  // Screens compose, components render (§10.3): the screen derives the script,
+  // `Findings` only displays whatever it is handed. Null is the normal answer
+  // for anything the playbooks do not recognise, and null renders nothing.
+  const prediction = useMemo(
+    () => predictNextLines({ text, tactics: result.tactics }),
+    [text, result.tactics],
+  )
 
   useEffect(() => {
     bannerRef.current?.focus()
@@ -88,7 +97,7 @@ export function Verdict({
       </div>
 
       <div className="screen__body">
-        <Findings result={result} text={text} />
+        <Findings result={result} text={text} prediction={prediction} />
 
         <div className="action-row">
           <button type="button" className="chip chip--grow" onClick={copySummary}>
