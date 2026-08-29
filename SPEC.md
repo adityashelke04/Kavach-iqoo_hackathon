@@ -2079,6 +2079,7 @@ session needs to know that is not already in this document.
 | P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
+| P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 
 ---
@@ -2520,6 +2521,50 @@ Heat (#FA5D19), Graphite (#262626) and Paper (#F9F9F9) are unchanged and remain
 the palette. What changed is the ration: Heat marks the action and nothing else
 on Home and Check, so that a danger verdict flooding the field edge to edge
 reads as escalation by area rather than one more orange accent among many.
+
+### 2026-08-29 — D12 · The engines decide together, not in a queue
+
+§6 originally specified a **fallback chain**: the user's chosen engine runs, and
+the rules engine substitutes only if it fails. The two never met. An LLM that
+answered was never checked against the deterministic engine, and the
+deterministic engine's findings were thrown away whenever the LLM worked.
+
+**Decided.** Rules and the LLM both run on every message and their findings are
+**fused** into one result.
+
+- Rules is the floor. It is synchronous, tuned against the corpus, gate-tested,
+  and it owns the sender/DLT signal, which a model must never guess at (D9).
+- The LLM adds what regex cannot see: novel wording, an unseen scam type,
+  Hinglish the term lists missed.
+- Tactics are unioned, one card per tactic (§7). Confidence combines by
+  weighted noisy-OR, `fused = r + 0.85·l·(1 − r)`.
+- The verdict is then recomputed by the **same** `decideVerdict`, so §4's
+  threshold table and all four override rules apply to the merged finding set.
+  Nothing downstream can tell that two engines ran.
+
+The weight is what stops two mildly-suspicious readings compounding into a
+warning: 0.20 and 0.20 fuse to 0.34, which is still `safe`, while 0.50 and 0.50
+fuse to 0.71, which is `danger` — independent agreement is worth more than
+either engine alone.
+
+**The LLM can only ever add.** `fuseConfidence` is monotonic in the rules
+confidence, asserted over the whole grid in `test:fusion`. A model politely
+concluding that a scam looks fine cannot lower a verdict the deterministic
+engine already reached, because that is exactly the argument a well-written
+scam makes.
+
+Two consequences worth recording:
+
+- **An out-of-range confidence is rejected, never rescaled.** The first version
+  read anything above 1 as a percentage. A model answering `4` on a scale of
+  its own then became 0.04 — `safe` — and a scam would have been waved through
+  with nothing in the logs. We cannot distinguish 4-percent from 4-out-of-5,
+  and the guess is only dangerous in one direction, so the contract is enforced
+  instead: a bad confidence is an engine failure (§6) and rules stands.
+- **The cloud key cannot live in the client.** Kavach is a static PWA and every
+  `VITE_*` value is compiled into the bundle. `api/analyze.ts` holds the key
+  server-side and builds the prompt itself, so the endpoint cannot be used as a
+  free general-purpose LLM proxy on the owner's account.
 
 ---
 

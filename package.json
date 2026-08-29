@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "test:corpus": "node scripts/test-corpus.mjs",
     "test:smoke": "node scripts/smoke.mjs",
-    "test:mobile": "node scripts/mobile-check.mjs"
+    "test:mobile": "node scripts/mobile-check.mjs",
+    "test:fusion": "node scripts/test-fusion.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
