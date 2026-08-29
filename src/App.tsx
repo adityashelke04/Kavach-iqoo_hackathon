@@ -92,6 +92,12 @@ export default function App() {
         result={activeResult}
         text={analysed || DEFAULT_SAMPLE_TEXT}
         pending={pending}
+        onBack={() => {
+          runId.current++
+          setResult(null)
+          setPending(false)
+          navigate('/')
+        }}
         onAgain={() => {
           runId.current++
           setResult(null)

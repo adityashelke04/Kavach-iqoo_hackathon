@@ -65,7 +65,7 @@ export function run() {
     results.verdicts[name] = {
       verdict: r.verdict,
       html: renderToString(
-        <Verdict result={r} text={input.text} pending={false} onAgain={noop} />,
+        <Verdict result={r} text={input.text} pending={false} onAgain={noop} onBack={noop} />,
       ),
     }
   }

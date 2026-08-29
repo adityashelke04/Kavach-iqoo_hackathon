@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { DetectionResult } from '../detector/types.ts'
 import { Findings, VerdictBanner } from '../ui/components/index.tsx'
 import { copy, TACTIC_LABELS } from '../ui/copy.ts'
+import { AppBar } from '../ui/primitives/index.tsx'
 import { IconCopy, IconCheck, IconShare } from '../ui/icons.tsx'
 
 /**
@@ -16,12 +17,14 @@ export function Verdict({
   text,
   pending = false,
   onAgain,
+  onBack,
 }: {
   result: DetectionResult
   text: string
   /** An on-device engine is still working behind this verdict (D13). */
   pending?: boolean
   onAgain: () => void
+  onBack?: () => void
 }) {
   const bannerRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
@@ -78,6 +81,8 @@ export function Verdict({
 
   return (
     <div className="screen">
+      <AppBar title={copy.app_name} onBack={onBack} />
+
       <div ref={bannerRef} tabIndex={-1}>
         <VerdictBanner verdict={result.verdict} />
       </div>
@@ -110,6 +115,11 @@ export function Verdict({
         <button className="btn btn--primary" onClick={onAgain}>
           {copy.cta_again}
         </button>
+        {onBack && (
+          <button type="button" className="btn btn--ghost" onClick={onBack}>
+            {copy.cta_done}
+          </button>
+        )}
       </div>
     </div>
   )

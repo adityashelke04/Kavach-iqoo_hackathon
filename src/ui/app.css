@@ -668,8 +668,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-10) var(--page-x) var(--sp-8);
-  padding-top: calc(var(--sp-10) + env(safe-area-inset-top));
+  padding: var(--sp-8) var(--page-x) var(--sp-6);
   text-align: center;
 }
 

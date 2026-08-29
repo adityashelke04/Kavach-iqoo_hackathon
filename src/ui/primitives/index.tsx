@@ -11,8 +11,8 @@ export function AppBar({
   action,
 }: {
   title: string
-  onBack?: () => void
-  action?: ReactNode
+  onBack?: (() => void) | undefined
+  action?: ReactNode | undefined
 }) {
   return (
     <header className="appbar">

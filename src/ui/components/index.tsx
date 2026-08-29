@@ -358,7 +358,9 @@ export function DeviceTelemetryPanel({ defaultOpen = false }: { defaultOpen?: bo
               fontSize: 'var(--fs-xs)',
               color: 'var(--heat)',
               textDecoration: 'underline',
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: '44px',
             }}
           >
             Open On-Device AI Laboratory &rarr;
