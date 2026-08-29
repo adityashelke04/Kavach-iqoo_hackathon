@@ -41,6 +41,7 @@ interface SpeechRecognitionLike {
   lang: string
   start(): void
   stop(): void
+  abort?: () => void
   onresult: ((e: SpeechEvent) => void) | null
   onerror: ((e: { error: string }) => void) | null
   onend: (() => void) | null
@@ -253,11 +254,35 @@ export function Listen({ onBack }: { onBack: () => void }) {
 
   const recRef = useRef<SpeechRecognitionLike | null>(null)
   const wantRunning = useRef(false)
+  const restartTimerRef = useRef<number | null>(null)
   const lastRunAt = useRef(0)
   const lastRunLen = useRef(0)
   const transcriptRef = useRef('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const simTimerRef = useRef<number | null>(null)
+
+  const cleanupRec = useCallback(() => {
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
+    const r = recRef.current
+    if (r) {
+      r.onresult = null
+      r.onerror = null
+      r.onend = null
+      try {
+        if (typeof r.abort === 'function') {
+          r.abort()
+        } else {
+          r.stop()
+        }
+      } catch {
+        /* already closed */
+      }
+      recRef.current = null
+    }
+  }, [])
 
   /**
    * The live loop is deterministic-only.
@@ -288,24 +313,17 @@ export function Listen({ onBack }: { onBack: () => void }) {
       window.clearInterval(simTimerRef.current)
       simTimerRef.current = null
     }
-    try {
-      recRef.current?.stop()
-    } catch {
-      /* already stopped */
-    }
+    cleanupRec()
     setPhase('stopped')
 
     // Now that nothing is streaming, spend the time on a full check of what
     // was actually said.
     const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
     if (buffer.trim()) void runDetection(buffer, true)
-  }, [runDetection])
+  }, [cleanupRec, runDetection])
 
-  const start = useCallback(() => {
-    if (simTimerRef.current !== null) {
-      window.clearInterval(simTimerRef.current)
-      simTimerRef.current = null
-    }
+  const startSession = useCallback(() => {
+    cleanupRec()
 
     const Ctor = getSpeechCtor()
     if (!Ctor) {
@@ -313,65 +331,82 @@ export function Listen({ onBack }: { onBack: () => void }) {
       return
     }
 
-    const rec = new Ctor()
-    rec.continuous = true
-    rec.interimResults = true
-    rec.lang = lang
+    try {
+      const rec = new Ctor()
+      rec.continuous = true
+      rec.interimResults = true
+      rec.lang = lang
 
-    rec.onresult = (e) => {
-      let addition = ''
-      let pending = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]
-        if (!r) continue
-        const chunk = r[0].transcript
-        if (r.isFinal) addition += chunk
-        else pending += chunk
-      }
-      setInterim(pending)
+      rec.onresult = (e) => {
+        let addition = ''
+        let pending = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i]
+          if (!r) continue
+          const chunk = r[0].transcript
+          if (r.isFinal) addition += chunk
+          else pending += chunk
+        }
+        setInterim(pending)
 
-      if (addition) {
-        transcriptRef.current = `${transcriptRef.current} ${addition}`.trim()
-        setFinalText(transcriptRef.current)
+        if (addition) {
+          transcriptRef.current = `${transcriptRef.current} ${addition}`.trim()
+          setFinalText(transcriptRef.current)
 
-        const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
-        const now = Date.now()
-        const grewEnough = buffer.length - lastRunLen.current > 15
-        if (now - lastRunAt.current > DEBOUNCE_MS && grewEnough) {
-          lastRunAt.current = now
-          lastRunLen.current = buffer.length
-          void runDetection(buffer)
+          const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
+          const now = Date.now()
+          const grewEnough = buffer.length - lastRunLen.current > 15
+          if (now - lastRunAt.current > DEBOUNCE_MS && grewEnough) {
+            lastRunAt.current = now
+            lastRunLen.current = buffer.length
+            void runDetection(buffer)
+          }
         }
       }
-    }
 
-    rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        wantRunning.current = false
-        setPhase('denied')
+      rec.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          wantRunning.current = false
+          cleanupRec()
+          setPhase('denied')
+        }
+        // Non-fatal errors like 'no-speech' or 'audio-capture': onend will fire and restart with cooldown
       }
-    }
 
-    // Android Chrome ends recognition the moment nobody is speaking, so a
-    // continuous session has to restart itself.
-    rec.onend = () => {
-      if (!wantRunning.current) return
-      try {
-        rec.start()
-      } catch {
-        /* restart raced with a stop */
+      // Android Chrome ends recognition the moment nobody is speaking.
+      // Re-instantiate with a cooldown delay so Chrome releases the mic handle first.
+      rec.onend = () => {
+        if (!wantRunning.current) return
+        cleanupRec()
+        restartTimerRef.current = window.setTimeout(() => {
+          if (wantRunning.current) {
+            startSession()
+          }
+        }, 300)
       }
-    }
 
-    recRef.current = rec
-    wantRunning.current = true
-    try {
+      recRef.current = rec
       rec.start()
       setPhase('listening')
     } catch {
-      setPhase('denied')
+      if (wantRunning.current) {
+        restartTimerRef.current = window.setTimeout(() => {
+          if (wantRunning.current) {
+            startSession()
+          }
+        }, 500)
+      }
     }
-  }, [lang, runDetection])
+  }, [cleanupRec, lang, runDetection])
+
+  const start = useCallback(() => {
+    if (simTimerRef.current !== null) {
+      window.clearInterval(simTimerRef.current)
+      simTimerRef.current = null
+    }
+    wantRunning.current = true
+    startSession()
+  }, [startSession])
 
   const reset = useCallback(() => {
     stop()
@@ -438,13 +473,9 @@ export function Listen({ onBack }: { onBack: () => void }) {
         window.clearInterval(simTimerRef.current)
         simTimerRef.current = null
       }
-      try {
-        recRef.current?.stop()
-      } catch {
-        /* cleanup */
-      }
+      cleanupRec()
     }
-  }, [])
+  }, [cleanupRec])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
