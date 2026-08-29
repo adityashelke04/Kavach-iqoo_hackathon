@@ -215,6 +215,8 @@ export const localDetector: Detector = {
               text: input.text,
               channel: input.channel ?? 'text',
               senderFact: fact,
+              ...(input.briefing ? { briefing: input.briefing } : {}),
+              ...(input.reconsider ? { reconsider: input.reconsider } : {}),
             }),
           },
         ],
