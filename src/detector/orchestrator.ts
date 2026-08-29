@@ -1,59 +1,52 @@
-import type { DetectionInput, DetectionResult, Detector } from './types.ts'
-import { analyzeWithRules } from './rules.ts'
+import type {
+  DetectionInput,
+  DetectionResult,
+  Detector,
+  ReconsiderationPrompt,
+} from './types.ts'
+import { analyzeWithRules, toBriefing } from './rules.ts'
 import { classifySender } from './sender.ts'
 import { validateResult } from './validate.ts'
 import { cloudDetector } from './cloud.ts'
 import { localDetector } from './local.ts'
-import { fuse } from './fuse.ts'
+import { fuse, findAuditGap } from './fuse.ts'
 
 /**
- * The orchestrator — SPEC.md §6, decisions D12 and D13.
+ * The orchestrator — SPEC.md §6, decision D15.
  *
  * The UI calls only this and never touches an engine.
  *
- *   1. Classify the sender once, deterministically, and hand the same
- *      SenderSignal to every engine (D9).
- *   2. Run the rules engine — synchronous, single-digit milliseconds, cannot
- *      fail. **Publish that answer immediately** (D13).
- *   3. Run an LLM engine in the background against a generous budget.
- *   4. If it answered and validated, fuse the two and publish the upgrade.
+ *   1. Classify the sender once, deterministically (D9).
+ *   2. Run the rules engine synchronously. Its result is not shown — it
+ *      becomes the briefing handed to the LLM.
+ *   3. Await the LLM, briefed. Nothing is published before this resolves.
+ *   4. Audit: does the LLM's answer cover every rules-found tactic with real
+ *      evidence?
+ *   5. If not, one bounded reconsideration call, showing the LLM its own
+ *      first answer and the specific finding it missed.
+ *   6. Fuse (re-centred on the LLM, D15) and decide via the shared §4 rules.
+ *   7. If every LLM attempt failed or the engine is unavailable, the rules
+ *      result stands, silently (D2) — the only path where a rules-only
+ *      result is ever shown.
  *
- * D13 is why step 2 publishes rather than waits. A 3B model on a phone takes
- * tens of seconds to write a couple of hundred tokens of JSON. Blocking on it
- * would put a 30-second spinner in front of someone who has just been
- * frightened by a message, in exchange for a better story on stage — a bad
- * trade, and one that falls apart the moment the model is slow. Publishing the
- * deterministic verdict first means a slow or failed model costs the user
- * nothing, and the on-device work becomes visible rather than invisible.
- *
- * The user never learns which engines ran. A failed engine is silent: no error
- * toast, no degraded banner, and the rules engine is never named (§6, §8.3).
+ * The user never learns which engines ran, or that a second call happened.
  */
 
-/**
- * `none` means the deterministic engine only.
- *
- * Listen mode uses it for the live loop: a rolling transcript is re-analysed
- * every couple of seconds, and starting a 30-second on-device generation on
- * each pass would queue jobs faster than they finish. It runs the full stack
- * once, on the final transcript, when the user stops.
- */
 export type EnginePreference = 'local' | 'cloud' | 'none'
 
-/**
- * Per-engine budgets.
- *
- * `local` is deliberately generous. Nothing is waiting on it (D13), so the
- * only thing a short timeout would achieve is throwing away an answer the
- * device already paid for.
- */
-export const ENGINE_TIMEOUTS = { local: 120_000, cloud: 15_000 } as const
+/** Status-only. Never carries a result — nothing is shown before `analyze`
+ *  resolves (D15). Purely for a "still thinking" / "double-checking one
+ *  detail" caption on the Check screen. */
+export type AnalysisPhase = 'thinking' | 'reconsidering'
 
-/** LLM engines by preference, in the order they are tried. */
-const LLM_ENGINES: Record<EnginePreference, Detector[]> = {
-  local: [localDetector],
-  cloud: [cloudDetector],
-  none: [],
+export const ENGINE_TIMEOUTS = {
+  local: { first: 120_000, reconsider: 60_000 },
+  cloud: { first: 15_000, reconsider: 15_000 },
+} as const
+
+const LLM_ENGINES: Record<Exclude<EnginePreference, 'none'>, Detector> = {
+  local: localDetector,
+  cloud: cloudDetector,
 }
 
 /** Wire an external signal to an internal one so a timeout and a caller abort
@@ -77,72 +70,76 @@ function withTimeout(
   }
 }
 
-/**
- * Try each LLM engine in turn. Returns null when none produced a valid result,
- * which is an ordinary outcome rather than an error.
- */
-async function runLlm(
+async function runOnce(
+  engine: Detector,
   input: DetectionInput,
-  preference: EnginePreference,
+  budgetMs: number,
   external?: AbortSignal,
 ): Promise<DetectionResult | null> {
-  for (const engine of LLM_ENGINES[preference]) {
-    const budget = engine.id === 'local' ? ENGINE_TIMEOUTS.local : ENGINE_TIMEOUTS.cloud
-    const { signal, done } = withTimeout(budget, external)
-
-    try {
-      if (!(await engine.isAvailable())) continue
-      return validateResult(await engine.detect(input, signal))
-    } catch (err) {
-      console.info(
-        `[kavach] ${engine.id} engine did not answer (${(err as Error).message}) — continuing`,
-      )
-    } finally {
-      done()
-    }
+  const { signal, done } = withTimeout(budgetMs, external)
+  try {
+    if (!(await engine.isAvailable())) return null
+    return validateResult(await engine.detect(input, signal))
+  } catch (err) {
+    console.info(`[kavach] ${engine.id} engine did not answer (${(err as Error).message}) — continuing`)
+    return null
+  } finally {
+    done()
   }
-  return null
-}
-
-export type Stage = 'instant' | 'final'
-
-export interface AnalysisStage {
-  result: DetectionResult
-  stage: Stage
-  /** True while a slower engine is still working behind this result. */
-  pending: boolean
 }
 
 /**
- * Analyse, publishing the deterministic verdict first and the fused verdict
- * when it arrives.
+ * Analyse a message. Resolves once, with the final result. Never throws.
  *
- * `onStage` is always called at least once, synchronously enough that the
- * screen can render before any network or GPU work begins. It is called a
- * second time only when an LLM actually improved on the first answer.
+ * `onPhase`, when given, is called zero or more times with a status label
+ * only — never a `DetectionResult` — so a UI can show "thinking" /
+ * "reconsidering" captions without anything resembling an early verdict.
  *
- * Resolves with the final result. Never throws.
+ * `engineOverride` exists only for tests: it substitutes a fake `Detector`
+ * for the given preference instead of the real local/cloud engine. Never
+ * pass it from application code.
  */
-export async function analyzeProgressive(
+export async function analyze(
   input: DetectionInput,
-  onStage: (s: AnalysisStage) => void,
   preference: EnginePreference = 'local',
   signal?: AbortSignal,
+  onPhase?: (phase: AnalysisPhase) => void,
+  engineOverride?: Partial<Record<Exclude<EnginePreference, 'none'>, Detector>>,
 ): Promise<DetectionResult> {
   const senderSignal = classifySender(input.sender)
   const rules = analyzeWithRules(input, senderSignal)
 
-  // Only promise an upgrade if some LLM engine could plausibly run.
-  const candidates = LLM_ENGINES[preference]
-  const anyAvailable = (
-    await Promise.all(candidates.map((e) => e.isAvailable().catch(() => false)))
-  ).some(Boolean)
+  if (preference === 'none') return rules
 
-  onStage({ result: rules, stage: 'instant', pending: anyAvailable })
+  const engine = engineOverride?.[preference] ?? LLM_ENGINES[preference]
+  const budgets = ENGINE_TIMEOUTS[preference]
+  const briefing = toBriefing(rules)
 
-  if (!anyAvailable) return rules
+  onPhase?.('thinking')
+  let llm = await runOnce(
+    engine,
+    { ...input, ...(briefing ? { briefing } : {}) },
+    budgets.first,
+    signal,
+  )
 
-  const llm = await runLlm(input, preference, signal)
+  if (llm) {
+    const gap = findAuditGap(rules.tactics, llm.tactics)
+    if (gap) {
+      const reconsider: ReconsiderationPrompt = {
+        priorExplanation: llm.explanation,
+        missingTactic: { name: gap.name, matchedPhrases: gap.evidence.map((e) => e.phrase) },
+      }
+      onPhase?.('reconsidering')
+      const reconsidered = await runOnce(
+        engine,
+        { ...input, ...(briefing ? { briefing } : {}), reconsider },
+        budgets.reconsider,
+        signal,
+      )
+      if (reconsidered) llm = reconsidered
+    }
+  }
 
   let result = rules
   if (llm) {
@@ -162,20 +159,5 @@ export async function analyzeProgressive(
       (llm ? ` (rules ${rules.confidence.toFixed(2)}, llm ${llm.confidence.toFixed(2)})` : ''),
   )
 
-  onStage({ result, stage: 'final', pending: false })
   return result
-}
-
-/**
- * The awaited form: resolves once with the best answer available.
- *
- * Used by the corpus and smoke harnesses, and by any caller that genuinely
- * cannot render twice. Screens should prefer `analyzeProgressive`.
- */
-export async function analyze(
-  input: DetectionInput,
-  preference: EnginePreference = 'local',
-  signal?: AbortSignal,
-): Promise<DetectionResult> {
-  return analyzeProgressive(input, () => {}, preference, signal)
 }

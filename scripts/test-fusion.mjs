@@ -21,6 +21,7 @@ const { validateResult } = await import(mod('src/detector/validate.ts'))
 const { fuse, fuseConfidence, mergeTactics, findAuditGap, LLM_WEIGHT } = await import(
   mod('src/detector/fuse.ts')
 )
+const { analyze } = await import(mod('src/detector/orchestrator.ts'))
 const { resultFromLlm, extractJson, LlmContractError } = await import(mod('src/detector/llm.ts'))
 const { buildUserPrompt, renderBriefing, renderReconsideration } = await import(
   mod('src/detector/prompt.ts')
@@ -499,6 +500,127 @@ group('fuse — end to end')
   }
   if (valid) ok('fused result satisfies every §7 invariant')
   check(new Set(fused.tactics.map((t) => t.name)).size === fused.tactics.length, 'no duplicate tactic cards after merge')
+}
+
+/* ------------------------------------------------------------------ */
+group('orchestrator — brief, decide, audit, reconsider (D15)')
+
+/** A fake Detector that returns canned answers per call, and records every
+ *  DetectionInput it was called with so the test can inspect what it saw. */
+function fakeEngine(id, answers) {
+  const calls = []
+  let i = 0
+  return {
+    detector: {
+      id,
+      async isAvailable() {
+        return true
+      },
+      async detect(input) {
+        calls.push(input)
+        const answer = answers[Math.min(i, answers.length - 1)]
+        i++
+        if (answer instanceof Error) throw answer
+        return answer
+      },
+    },
+    calls,
+  }
+}
+
+{
+  // The LLM's first answer already agrees with rules — no reconsideration call.
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const agree = asLlm(
+    {
+      confidence: 0.8,
+      tactics: [
+        { name: 'isolation', evidence: ['do not tell anyone'], note: 'x' },
+        { name: 'extraction', evidence: ['share the OTP'], note: 'x' },
+      ],
+      explanation: 'It isolates you and asks for your code.',
+      nextMove: 'They want the OTP.',
+    },
+    scam,
+  )
+  const fake = fakeEngine('local', [agree])
+  const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
+  check(fake.calls.length === 1, 'no reconsideration call when the first answer already covers the rules findings')
+  check(fake.calls[0].briefing !== undefined, 'the first call is briefed with the rules findings')
+  check(result.verdict === 'danger', 'agreement on two tactics reaches danger')
+}
+
+{
+  // The LLM misses isolation on its first pass, addresses it on reconsideration.
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const missed = asLlm(
+    {
+      confidence: 0.5,
+      tactics: [{ name: 'extraction', evidence: ['share the OTP'], note: 'x' }],
+      explanation: 'It asks for your code.',
+      nextMove: 'They want the OTP.',
+    },
+    scam,
+  )
+  const corrected = asLlm(
+    {
+      confidence: 0.85,
+      tactics: [
+        { name: 'extraction', evidence: ['share the OTP'], note: 'x' },
+        { name: 'isolation', evidence: ['do not tell anyone'], note: 'x' },
+      ],
+      explanation: 'It also isolates you from checking with anyone.',
+      nextMove: 'They want the OTP.',
+    },
+    scam,
+  )
+  const fake = fakeEngine('local', [missed, corrected])
+  const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
+  check(fake.calls.length === 2, 'a missed tactic with real evidence triggers exactly one reconsideration call')
+  check(fake.calls[1].reconsider?.missingTactic.name === 'isolation', 'the reconsideration call names the specific missed tactic')
+  check(result.tactics.some((t) => t.name === 'isolation'), 'the corrected answer is reflected in the final result')
+}
+
+{
+  // The LLM still disagrees after reconsidering — never a third call, and the
+  // rules-found tactic still survives into the final result via the audit.
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const missed = asLlm(
+    {
+      confidence: 0.3,
+      tactics: [{ name: 'extraction', evidence: ['share the OTP'], note: 'x' }],
+      explanation: 'It asks for your code.',
+      nextMove: 'They want the OTP.',
+    },
+    scam,
+  )
+  const stillMissed = asLlm(
+    {
+      confidence: 0.3,
+      tactics: [{ name: 'extraction', evidence: ['share the OTP'], note: 'x' }],
+      explanation: 'I disagree, this still just looks like a code request.',
+      nextMove: 'They want the OTP.',
+    },
+    scam,
+  )
+  const fake = fakeEngine('local', [missed, stillMissed])
+  const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
+  check(fake.calls.length === 2, 'reconsideration is bounded to exactly one retry even when the model still disagrees')
+  check(
+    result.tactics.some((t) => t.name === 'isolation'),
+    "the rules-found tactic is unioned into the final result even though the LLM never accepted it",
+  )
+  check(result.verdict !== 'safe', 'the merged evidence keeps the result off safe')
+}
+
+{
+  // Every LLM call fails — silent rules-only fallback (D2), unchanged.
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const fake = fakeEngine('local', [new Error('model crashed')])
+  const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
+  check(fake.calls.length === 1, 'a failed engine is not retried as if it were a reconsideration')
+  check(result.engineUsed === 'rules', 'a total engine failure falls back to the rules-only result')
+  check(result.verdict === 'danger', 'the rules-only fallback still reaches the correct verdict on its own')
 }
 
 /* ------------------------------------------------------------------ */
