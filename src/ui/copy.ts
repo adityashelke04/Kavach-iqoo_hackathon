@@ -102,7 +102,9 @@ export const copy = {
     'Messages are checked on your phone. Nothing you paste is sent anywhere.',
 
   // --- Engine & Privacy Switch (§10.6, §10.7) -------------------------------
-  engine_title: 'Privacy & Engine',
+  // "Engine" dropped: the two choices below (On-device / Cloud) already say
+  // what they are without the internal word for them.
+  engine_title: 'Privacy',
   engine_local: 'On-device',
   engine_local_badge: 'Private',
   engine_cloud: 'Cloud',

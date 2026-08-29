@@ -373,7 +373,7 @@ export function DeviceTelemetryPanel({ defaultOpen = false }: { defaultOpen?: bo
               minHeight: '44px',
             }}
           >
-            Open On-Device AI Laboratory &rarr;
+            See the on-device AI test page &rarr;
           </a>
         </div>
       </div>
