@@ -61,6 +61,8 @@ export function ShieldLogo({ size = 36, className, ...props }: IconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
         filter="url(#kavachHeatGlow)"
+        pathLength={1}
+        className="shield-outline"
       />
 
       {/* Prismatic Specular Bezel Inner Inset */}

@@ -464,6 +464,62 @@
   color: var(--text-muted);
 }
 
+/* One-time brand entrance (§10.6) — runs once per session, applied via
+   `.brand--entering` from Home.tsx, and removed after it finishes. */
+.shield-outline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.brand--entering .shield-outline {
+  stroke-dashoffset: 1;
+  animation: shield-draw var(--dur-brand) var(--ease-emphasis) forwards;
+}
+
+@keyframes shield-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.brand--entering .brand__tagline {
+  opacity: 0;
+  animation: tagline-in var(--dur-slow) var(--ease-out) forwards;
+  animation-delay: calc(var(--dur-brand) * 0.55);
+}
+
+@keyframes tagline-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The privacy line's "nothing is leaving this phone right now" dot. */
+.privacy-line__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--safe-accent);
+  margin-right: var(--sp-1);
+  animation: privacy-breathe 2.4s var(--ease-out) infinite;
+}
+
+@keyframes privacy-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* ==========================================================================
    8b. Engine & Privacy Switch (Impeccable tactile control)
    ========================================================================== */

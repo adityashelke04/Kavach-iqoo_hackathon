@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { EnginePreference } from '../detector/orchestrator.ts'
 import { copy } from '../ui/copy.ts'
 import {
@@ -32,6 +32,19 @@ export function Home({
   const tapCount = useRef(0)
   const lastTap = useRef(0)
 
+  // The shield draw-in and tagline settle run once per session, never on a
+  // return to Home within the same session (§10.6, D15's Home direction).
+  const [entering] = useState(() => {
+    try {
+      const seen = sessionStorage.getItem('kavach-brand-seen')
+      if (seen) return false
+      sessionStorage.setItem('kavach-brand-seen', '1')
+      return true
+    } catch {
+      return false // storage blocked (private mode) — skip the entrance, never crash for it
+    }
+  })
+
   // Triple-tap failsafe on brand header (SPEC.md §11 P10, §13)
   const handleBrandTap = () => {
     const now = Date.now()
@@ -51,7 +64,7 @@ export function Home({
     <main className="screen screen--bare">
       <div className="screen__body">
         <header
-          className="brand"
+          className={`brand${entering ? ' brand--entering' : ''}`}
           onClick={handleBrandTap}
           style={{ cursor: 'pointer', userSelect: 'none' }}
           title="Kavach Shield"
@@ -95,7 +108,10 @@ export function Home({
           <span className="privacy-line__icon" aria-hidden="true">
             <IconLock size={18} />
           </span>
-          <p className="privacy-line__text">{copy.home_privacy}</p>
+          <p className="privacy-line__text">
+            <span className="privacy-line__dot" aria-hidden="true" />
+            {copy.home_privacy}
+          </p>
         </div>
 
         <div style={{ marginTop: 'var(--sp-4)' }}>
