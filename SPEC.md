@@ -1745,6 +1745,19 @@ agent.**
 **Note:** do this during a Green Light window. Installs and first deploys are
 miserable over remote-control.
 
+**⚠ Secure-context trap — read before debugging any WebGPU failure.**
+WebGPU, service workers and the microphone all require a *secure context*.
+`localhost` counts; **a LAN address like `http://192.168.x.x:5173` does not.**
+
+So opening the dev server on the phone over wifi will report **no WebGPU
+adapter** — not because the iQOO cannot do it, but because the page is not
+secure. That failure looks identical to a dead device and is the single most
+likely way to waste an hour panicking about hardware that is fine.
+
+**Always test device capability against the deployed HTTPS URL.** `/dev/probe`
+reports `isSecureContext` as its first row precisely so this is visible at a
+glance rather than inferred.
+
 ---
 
 ### ☐ P1 — Detector core · ~2h
@@ -1784,6 +1797,10 @@ integration, no prompt engineering. Throwaway code — P7 rewrites it properly.
 **Exit criterion:** on the iQOO, over HTTPS, the model loads and produces
 tokens, with the numbers printed on screen. Then reload and confirm the second
 load is served from IndexedDB.
+
+**Before declaring failure, check `/dev/probe` first.** If `isSecureContext` is
+false you are on the LAN dev server, not the deployed URL, and WebGPU is absent
+for that reason alone — see the trap noted under P0.
 
 **If it fails:** stop and re-plan immediately. Do not attempt to fix it inside
 this timebox and do not proceed to P3 assuming it will work later. The fallback
