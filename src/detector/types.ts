@@ -19,6 +19,33 @@ export const TACTIC_NAMES: readonly TacticName[] = [
 ]
 
 /**
+ * What a fast, deterministic first pass over the message already found,
+ * handed to whichever LLM engine runs as context for its own reading — never
+ * as a verdict (D15).
+ */
+export interface RuleBriefing {
+  tactics: {
+    name: TacticName
+    /** Exact phrases the deterministic scan matched, verbatim from the text. */
+    matchedPhrases: string[]
+  }[]
+}
+
+/**
+ * Shown to an LLM engine on its second call, when the audit step (D15) found
+ * a tactic the engine's first answer omitted despite concrete evidence.
+ */
+export interface ReconsiderationPrompt {
+  /** The engine's own first-pass explanation, so it can be shown its prior answer. */
+  priorExplanation: string
+  /** The specific rules-found tactic the first pass did not address. */
+  missingTactic: {
+    name: TacticName
+    matchedPhrases: string[]
+  }
+}
+
+/**
  * Where the text came from (§5.6). A speech transcript is not an SMS: it has
  * no sender, no punctuation, spells acronyms out as "o t p", and carries
  * call-centre framing that never appears in a text message.
@@ -32,6 +59,10 @@ export interface DetectionInput {
   sender?: string
   /** Defaults to 'text'. Listen mode passes 'voice' (§5.6). */
   channel?: Channel
+  /** The rules engine's own read of this message, for the LLM to read before deciding (D15). */
+  briefing?: RuleBriefing
+  /** Present only on the one bounded second call an engine may receive (D15). */
+  reconsider?: ReconsiderationPrompt
 }
 
 export type SenderKind =
