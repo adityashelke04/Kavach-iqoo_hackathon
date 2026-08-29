@@ -1,0 +1,61 @@
+/* Kavach design tokens — SPEC.md §10.2
+ *
+ * P0 STUB. Only the surface/text roles needed by the scaffold and the dev
+ * routes are defined here. P4 completes this file: the full verdict roles,
+ * type scale, spacing, radii, elevation, motion, and the light theme.
+ *
+ * RULE (§10.2, frozen): no component may hard-code a hex, a radius, or a
+ * duration. If a value is needed that is not here, add the token.
+ */
+
+:root {
+  /* surfaces & text — dark, the default */
+  --bg: #0b0d10;
+  --surface: #14181d;
+  --surface-2: #1c222a;
+  --border: #2a323c;
+  --text: #f2f5f8;
+  --text-muted: #98a4b3;
+  --text-faint: #6b7785;
+
+  /* verdict roles — accents only at P0; tints and on-tint land at P4 */
+  --danger-accent: #e5484d;
+  --caution-accent: #ffb224;
+  --safe-accent: #30a46c;
+
+  /* type scale */
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.5rem;
+  --lh-tight: 1.2;
+  --lh-body: 1.55;
+
+  /* spacing */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-12: 3rem;
+
+  /* radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-full: 999px;
+
+  /* motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* layout */
+  --tap-min: 44px;
+  --content-max: 34rem;
+}
