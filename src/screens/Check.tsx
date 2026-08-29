@@ -59,11 +59,14 @@ export function Check({
     setBusy(true)
     const body = text.trim()
     try {
-      const result = await analyze({
-        text: body,
-        channel: 'text',
-        ...(sender.trim() ? { sender: sender.trim() } : {}),
-      })
+      const [result] = await Promise.all([
+        analyze({
+          text: body,
+          channel: 'text',
+          ...(sender.trim() ? { sender: sender.trim() } : {}),
+        }),
+        new Promise((resolve) => setTimeout(resolve, 400)),
+      ])
       onResult(result, body)
     } finally {
       setBusy(false)
@@ -95,6 +98,7 @@ export function Check({
             }}
           />
           {tooShort && text.length > 0 && <p className="hint">{copy.too_short}</p>}
+          {text.length > 4000 && <p className="hint">{copy.truncated}</p>}
         </div>
 
         {sender && !editingSender ? (

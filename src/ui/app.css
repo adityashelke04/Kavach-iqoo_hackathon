@@ -99,7 +99,7 @@
 }
 .btn--danger {
   background: var(--danger-accent);
-  color: #fff;
+  color: var(--text);
 }
 
 /* ---- the two big home choices ---- */

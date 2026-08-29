@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { DetectionResult } from '../detector/types.ts'
 import { Findings, VerdictBanner } from '../ui/components/index.tsx'
 import { copy } from '../ui/copy.ts'
@@ -21,9 +22,17 @@ export function Verdict({
   text: string
   onAgain: () => void
 }) {
+  const bannerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bannerRef.current?.focus()
+  }, [])
+
   return (
     <div className="screen">
-      <VerdictBanner verdict={result.verdict} />
+      <div ref={bannerRef} tabIndex={-1} style={{ outline: 'none' }}>
+        <VerdictBanner verdict={result.verdict} />
+      </div>
 
       <div className="screen__body">
         <Findings result={result} text={text} />
