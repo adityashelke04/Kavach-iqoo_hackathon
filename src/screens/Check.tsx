@@ -178,7 +178,11 @@ export function Check({
         {busy ? (
           <div className="working" role="status" aria-live="polite">
             <div className="working__pulse" aria-hidden="true" />
-            <p className="working__text">{statusLine}</p>
+            {/* Keyed by its own text so the rare "double-checking one detail"
+                switch (D15 step 6) crossfades in rather than snapping. */}
+            <p className="working__text" key={statusLine}>
+              {statusLine}
+            </p>
             <p className="working__meta">
               {elapsedLabel}
               {modelLabel ? ` · ${modelLabel}` : ''}
