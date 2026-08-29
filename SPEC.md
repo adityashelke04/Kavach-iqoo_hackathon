@@ -2272,8 +2272,18 @@ device. Fix only what the rehearsal breaks.
 
 Three phases are now blocked on the same thing: nobody has held the phone. They
 share one session, in this order, because each step leaves the phone in the
-state the next one needs. Deploy first (`vercel --prod`), then, on the iQOO, in
-Chrome:
+state the next one needs. The current build is already deployed — open
+**https://kavach-iqoo-hackathon.vercel.app** on the iQOO, in Chrome
+(`vercel --prod` again first only if you have committed since):
+
+**Expect the first check on a cold phone to be slow, and do not read that as a
+fault.** D15 removed the early rules-only paint, so nothing publishes until the
+model has loaded — and on a device that has never run one, "loading" includes
+downloading it. That is exactly why step 2 below comes before step 4: warm the
+cache at `/dev/llm` deliberately, rather than discovering it during a demo. This
+was confirmed on the deployed build, where a laptop-class GPU picked the `max`
+tier and spent minutes fetching Qwen2.5-3B before its first verdict. The phone
+should pick `standard` instead — which is the reading step 2 asks you to record.
 
 1. **`/dev/probe`** — confirm `isSecureContext` is true and WebGPU is present.
    If this fails nothing below can pass; stop and read the secure-context trap
@@ -2305,7 +2315,7 @@ session needs to know that is not already in this document.
 
 | Phase | Finished | Notes for the next session |
 |---|---|---|
-| P0 | code complete | Deployed URL + on-device WebGPU check still pending. `/dev/probe` reports `isSecureContext` first — see the secure-context trap above. |
+| P0 | deployed | **Live at https://kavach-iqoo-hackathon.vercel.app** — open this on the iQOO. Production was verified after the P8/D16 deploy: the worker takes control, every manifest icon serves as a real image (not the SPA fallback), and Check → Verdict → Report runs end to end. The on-device WebGPU check on the phone is still the open item. `/dev/probe` reports `isSecureContext` first — see the secure-context trap above. |
 | P4-P6 | done | Home / Check / Verdict wired to the orchestrator. Screens compose, components render, detector decides - no component imports an engine. `npm run test:smoke` renders every screen against real engine output. |
 | P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
