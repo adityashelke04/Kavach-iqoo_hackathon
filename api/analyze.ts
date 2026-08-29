@@ -25,6 +25,10 @@ import type { Channel } from '../src/detector/types.ts'
 // for it would change what `setTimeout` returns everywhere in `src`.
 declare const process: { env: Record<string, string | undefined> }
 
+export const config = {
+  runtime: 'edge',
+}
+
 const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite'
 const MAX_CHARS = 4000
 const UPSTREAM_TIMEOUT_MS = 12_000
