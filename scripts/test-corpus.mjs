@@ -63,6 +63,7 @@ const rows = []
 for (const { entry } of entries) {
   const input = { text: entry.text }
   if (entry.sender) input.sender = entry.sender
+  if (entry.channel) input.channel = entry.channel
 
   let result
   try {
@@ -157,7 +158,9 @@ const recall = scamTotal ? ((scamDanger / scamTotal) * 100).toFixed(0) : '—'
 const warned = scamTotal ? ((scamWarned / scamTotal) * 100).toFixed(0) : '—'
 
 console.log(`\n${C.bold}Summary${C.reset}`)
+const voiceTotal = entries.filter((e) => e.entry.channel === 'voice').length
 console.log(`  corpus              ${entries.length} messages (${scamTotal} scam, ${legitTotal} legit)`)
+console.log(`  channels            ${entries.length - voiceTotal} text, ${voiceTotal} voice transcript`)
 console.log(`  scam -> danger      ${recall}%  ${C.dim}(soft target >=80%)${C.reset}`)
 console.log(`  scam -> warned      ${warned}%  ${C.dim}(soft target >=95%)${C.reset}`)
 

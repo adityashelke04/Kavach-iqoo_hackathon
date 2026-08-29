@@ -1,0 +1,108 @@
+[
+  {
+    "id": "voice-scam-001",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello sir i am calling from the state bank of india head office your account has been temporarily suspended please listen to me carefully do not disconnect the call i will send you a code on your phone just read out the o t p to me for verification",
+    "expect": "danger",
+    "expectTactics": ["authority", "isolation", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — REGRESSION GUARD: was only 'caution' before §5.6. 'o t p' is how speech recognition writes OTP."
+  },
+  {
+    "id": "voice-scam-002",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "madam this is sub inspector from cyber crime branch your aadhaar number has been used in a money laundering case this is a confidential investigation do not tell anyone in your family we are recording this call stay on the line",
+    "expect": "danger",
+    "expectTactics": ["authority", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — digital arrest call"
+  },
+  {
+    "id": "voice-scam-003",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir to resolve this issue you need to install one application called any desk from the google play store then tell me the nine digit code that appears on your screen so i can check your banking app",
+    "expect": "danger",
+    "expectTactics": ["extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — remote access. 'any desk' is how ASR splits AnyDesk."
+  },
+  {
+    "id": "voice-scam-004",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir your parcel from customs is held you have to pay a small clearance fee of four thousand nine hundred rupees just scan the q r code i am sending on whatsapp",
+    "expect": "danger",
+    "expectTactics": ["authority", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — customs fee, amount spoken as words not digits"
+  },
+  {
+    "id": "voice-scam-005",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir before we proceed are you alone at home please go to a quiet room this is a confidential matter from the enforcement directorate",
+    "expect": "danger",
+    "expectTactics": ["authority", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — 'are you alone' is the strongest voice-only signal there is"
+  },
+  {
+    "id": "voice-scam-006",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "ma am your k y c is pending please open your banking app and switch on your mobile data i will guide you step by step do not keep the phone down",
+    "expect": "danger",
+    "expectTactics": ["isolation", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — guided-through-the-app pattern"
+  },
+  {
+    "id": "voice-legit-001",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello sir i am calling from swiggy your delivery is at the gate can you please come down and share the delivery code with me",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — REGRESSION GUARD: a real delivery call legitimately asking for a code"
+  },
+  {
+    "id": "voice-legit-002",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir this is amazon delivery i am at your gate please share the six digit code shown in your app with the delivery partner",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — REGRESSION GUARD: 'six digit code' plus 'share' in a legitimate context"
+  },
+  {
+    "id": "voice-legit-003",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "good morning this is a reminder call from apollo clinic your appointment with doctor mehta is tomorrow at eleven a m please arrive ten minutes early",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — legitimate automated reminder call"
+  },
+  {
+    "id": "voice-legit-004",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "hi beta i reached the station safely the train was late by one hour i will call you after reaching home take care",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — ordinary family call"
+  }
+]

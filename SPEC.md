@@ -519,6 +519,56 @@ sender is a bonus signal, never a prerequisite.
 
 ---
 
+### §5.6 · Voice — a transcript is not an SMS
+
+Listen mode (§10.6, §11 P11) feeds a live speech transcript through the **same
+`Detector` interface** — that is the point of §6, and Listen mode adds no
+detection logic of its own. But the *text* it produces is a different animal
+from an SMS, and treating them identically loses real scams.
+
+`DetectionInput.channel` is `'text'` (default) or `'voice'`.
+
+#### What actually differs
+
+| | SMS | Transcript |
+|---|---|---|
+| Sender | Often available — drives §5.5 | **Never available.** The impersonation-mismatch rule cannot fire, so the language has to carry the whole judgment. |
+| Acronyms | `OTP`, `KYC`, `UPI` | `o t p`, `k y c`, `u p i` — speech recognition spells them out |
+| App names | `AnyDesk` | `any desk` |
+| Amounts | `Rs.4999` | `four thousand nine hundred rupees` |
+| Punctuation | Present | Absent — no sentence boundaries |
+| Framing | Written notice | Call-centre script: "I am calling from…", "please listen carefully", "transferring your call" |
+| Completeness | Whole message at once | A rolling buffer of a conversation still in progress |
+
+#### How acronyms are handled — and why not by normalising
+
+The obvious fix is to rewrite `o t p` to `otp` before matching. **Do not.**
+Rewriting changes character offsets, and evidence offsets are what drive
+highlighting (§7). A normalisation pass would silently corrupt every highlight
+in Listen mode.
+
+Instead the patterns themselves match both forms: `o[\s.]?t[\s.]?p`
+matches `OTP`, `o t p` and `o.t.p` alike, and offsets stay exact. Same for CVV,
+KYC and UPI.
+
+#### Voice-only terms
+
+`VOICE_TERMS` in `terms.ts` is merged on top of `TERMS` when the channel is
+voice. These are patterns that do not occur in an SMS, so keeping them out of
+the text path avoids inventing false positives there.
+
+The strongest voice-only signal by a distance is **"are you alone" / "is anyone
+with you" / "go to a quiet room"**. A real bank has no reason to establish
+whether you are unsupervised. A scammer running a digital-arrest script always
+does, and it has essentially no legitimate counterpart on a phone call.
+
+#### The legitimate-call trap
+
+Delivery and cab drivers really do call and ask you to read out a code. Those
+are the voice equivalent of the legitimate bank OTP SMS, and the corpus carries
+them as regression guards (`voice-legit-001`, `voice-legit-002`). Any change to
+the voice terms must keep them `safe`.
+
 ### `nextMove` — required on every result
 
 `DetectionResult.nextMove` (§7) is **always populated**, including on `safe`
@@ -2381,6 +2431,34 @@ sender as showable evidence. Free to do now because P0 has not started.
 **Also corrected in this pass:** §4's second override rule was labelled "Two-tactic
 rule" while its text said "three or more". It is now "Three-tactic rule". The
 text was always the intended behaviour.
+
+---
+
+### 2026-08-29 — D10, voice as a first-class channel
+
+**D10 · `DetectionInput.channel` distinguishes text from voice.**
+
+Listen mode runs through the same `Detector` and the same orchestrator — no
+parallel detection path, per §6. But a transcript differs from an SMS in ways
+that measurably lose scams: no sender, no punctuation, acronyms spelled out as
+"o t p", app names split as "any desk", amounts spoken as words, and call-centre
+framing that never appears in writing.
+
+Measured before the change: a textbook vishing transcript ("...just read out the
+o t p to me for verification") scored 0.63 and returned `caution` instead of
+`danger`, purely because `otp` does not match `o t p`.
+
+Two implementation choices worth preserving:
+
+- **Acronyms are matched in both forms by one pattern, not normalised.**
+  Rewriting the transcript would shift character offsets and corrupt every
+  highlight (§7). `o[\s.]?t[\s.]?p` costs nothing and keeps offsets exact.
+- **Voice terms are additive, not a replacement.** They are merged only when
+  `channel === 'voice'`, so call-centre patterns cannot create false positives
+  in the text path.
+
+After the change: 10/10 on held-out transcripts, including the two legitimate
+delivery calls that ask you to read out a code. See §5.6.
 
 ---
 

@@ -147,9 +147,13 @@ const extraction: Term[] = [
   // Credentials
   t(String.raw`(share|send|provide|give|forward|tell)( me| us)? (the |your )?otp`, 1.9),
   t(String.raw`otp bhej|otp bata`, 1.9),
-  t(String.raw`\botp\b`, 1.4),
+  // Acronyms are written "OTP" in an SMS but come out of speech recognition as
+  // "o t p" or "o.t.p". Matching both forms with one pattern keeps character
+  // offsets exact — rewriting the transcript to normalise it would break
+  // highlighting (§7). See §5.6.
+  t(String.raw`\bo[\s.]?t[\s.]?p\b`, 1.4),
   t(String.raw`one[- ]time password`, 1.5),
-  t(String.raw`\bcvv\b`, 1.5),
+  t(String.raw`\bc[\s.]?v[\s.]?v\b`, 1.5),
   t(String.raw`\b(atm |card )?pin\b`, 1.1),
   t(String.raw`(debit|credit) card (number|details|info)`, 1.4),
   t(String.raw`card number`, 1.3),
@@ -159,7 +163,7 @@ const extraction: Term[] = [
   t(String.raw`(aadha?ar|pan) (number|card) (details|copy)?`, 1.2),
 
   // Money movement
-  t(String.raw`\bupi (id|pin|address)\b`, 1.4),
+  t(String.raw`\bu[\s.]?p[\s.]?i (id|pin|address)\b`, 1.4),
   t(String.raw`\bupi\b`, 1.0),
   t(String.raw`scan (this|the) qr|\bqr code\b`, 1.5),
   t(String.raw`(send|transfer|pay) (rs\.?|₹|inr|money|amount|the amount)`, 1.5),
@@ -188,7 +192,7 @@ const extraction: Term[] = [
   t(String.raw`click (here|this link|on the link|below)`, 1.4),
   t(String.raw`verify your (kyc|account|identity|details|number)`, 1.4),
   t(String.raw`update your (kyc|account|details|pan|aadha?ar|record)`, 1.5),
-  t(String.raw`\bkyc\b`, 1.0),
+  t(String.raw`\bk[\s.]?y[\s.]?c\b`, 1.0),
   t(String.raw`re[- ]?activate your (account|sim|number)`, 1.4),
   t(String.raw`whats ?app (me|us) (on|at)`, 1.5),
   // A personal mobile number in the body of a message claiming to be an
@@ -202,6 +206,64 @@ export const TERMS: Record<TacticName, Term[]> = {
   urgency,
   isolation,
   extraction,
+}
+
+// ---------------------------------------------------------------------------
+// VOICE-ONLY TERMS — SPEC.md §5.6
+//
+// Merged on top of TERMS when `channel === 'voice'`. These are call-centre and
+// live-conversation patterns that simply do not occur in an SMS, so keeping
+// them out of the text path avoids inventing false positives there.
+//
+// The single strongest one is "are you alone" / "is anyone with you". A real
+// bank has no reason to establish whether you are unsupervised. A scammer
+// running a digital-arrest script always does.
+// ---------------------------------------------------------------------------
+const voiceAuthority: Term[] = [
+  t(String.raw`i am (calling|speaking) from|this is .{0,25} (calling|speaking) from`, 1.4),
+  t(String.raw`calling from (the )?(head ?office|head ?quarters|main branch)`, 1.3),
+  t(String.raw`(this|the) call is being recorded|recorded for (legal|security)`, 1.2),
+  t(String.raw`transferring your call|connecting you (to|with)`, 1.2),
+  t(String.raw`(senior|higher) officer|my senior`, 1.1),
+  t(String.raw`badge number|employee (id|code) is`, 1.2),
+]
+
+const voiceUrgency: Term[] = [
+  t(String.raw`right now|abhi ke abhi|is[i]? waqt`, 1.0),
+  t(String.raw`in the next few (minutes|seconds)`, 1.2),
+  t(String.raw`do ?n[o']?t waste time|jaldi kar`, 1.2),
+]
+
+const voiceIsolation: Term[] = [
+  // Establishing that the victim is unsupervised. Near-conclusive.
+  t(String.raw`are you alone|is (anyone|someone) (with you|near you|at home|around)`, 2.2),
+  t(String.raw`go to a (quiet|separate|private) (room|place)`, 2.2),
+  t(String.raw`(is|are) (there )?(anyone|somebody|someone) listening`, 2.0),
+  t(String.raw`please listen (to me )?carefully`, 1.2),
+  t(String.raw`do ?n[o']?t (put|keep) (the )?(phone|call) down`, 1.8),
+  t(String.raw`do ?n[o']?t talk to (anyone|any ?one|anybody)`, 2.0),
+]
+
+const voiceExtraction: Term[] = [
+  t(
+    String.raw`(read|tell|say|give)( it)?( me| us| out| to me| back)+ (the |that )?(code|number|otp|o[\s.]?t[\s.]?p|password)`,
+    1.9,
+  ),
+  t(String.raw`what is the (code|otp|o[\s.]?t[\s.]?p|number) (you|that you) (got|received)`, 1.9),
+  t(String.raw`(nine|9|six|6|four|4)[ -]digit (code|number|pin)`, 1.6),
+  t(String.raw`(open|go to|install from) (the )?(play ?store|google play|app ?store)`, 1.4),
+  t(String.raw`switch on (your )?(internet|mobile data|data)`, 1.3),
+  t(String.raw`open your (banking|bank|payment) app`, 1.5),
+  t(String.raw`press (one|two|nine|zero|1|2|9|0)\b`, 0.9),
+  t(String.raw`(thousand|lakh|crore|hundred) rupees|rupees only`, 1.0),
+  t(String.raw`keep (the|your) phone (with you|on|unlocked)`, 1.2),
+]
+
+export const VOICE_TERMS: Record<TacticName, Term[]> = {
+  authority: voiceAuthority,
+  urgency: voiceUrgency,
+  isolation: voiceIsolation,
+  extraction: voiceExtraction,
 }
 
 // ---------------------------------------------------------------------------

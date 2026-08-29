@@ -8,7 +8,7 @@ import type {
   TacticName,
 } from './types.ts'
 import { TACTIC_NAMES } from './types.ts'
-import { CONCLUSIVE, NEGATIVES, TERMS } from './terms.ts'
+import { CONCLUSIVE, NEGATIVES, TERMS, VOICE_TERMS } from './terms.ts'
 import { classifySender } from './sender.ts'
 import { decideVerdict } from './verdict.ts'
 import { TACTIC_LABELS } from '../ui/copy.ts'
@@ -180,13 +180,18 @@ function describeNextMove(text: string, hasFindings: boolean): string {
   if (has(/any ?desk|team ?viewer|quick ?support|rust ?desk|screen ?shar/i)) {
     return 'They want you to install a screen-sharing app so they can operate your banking app while you watch.'
   }
-  if (has(/\botp\b|one[- ]time password/i)) {
+  // Acronyms match their spoken forms too ("o t p"), see §5.6.
+  if (has(/\bo[\s.]?t[\s.]?p\b|one[- ]time password|\d[- ]digit (code|number)/i)) {
     return "They want the OTP from your bank's SMS. That code is the only thing standing between them and your account."
   }
-  if (has(/\bupi\b|qr code|scan this|(send|transfer|pay) (rs\.?|₹|money|amount)|deposit|fee/i)) {
+  if (
+    has(
+      /\bu[\s.]?p[\s.]?i\b|qr code|scan this|(send|transfer|pay) (rs\.?|₹|money|amount)|deposit|fee|rupees/i,
+    )
+  ) {
     return 'They want you to send money now and trust a refund later. There will be no refund.'
   }
-  if (has(/\bcvv\b|card number|\bpin\b|password|login/i)) {
+  if (has(/\bc[\s.]?v[\s.]?v\b|card number|\bpin\b|password|login/i)) {
     return 'They want your card or login details, which is everything needed to empty the account.'
   }
   if (has(/bit\.ly|tinyurl|click here|https?:\/\/|verify your|update your/i)) {
@@ -254,8 +259,13 @@ export function analyzeWithRules(
     extraction: [],
   }
 
+  // A transcript gets the voice term set merged on top (§5.6).
+  const channel = input.channel ?? 'text'
+
   for (const name of TACTIC_NAMES) {
-    for (const m of collect(text, TERMS[name])) {
+    const active =
+      channel === 'voice' ? [...TERMS[name], ...VOICE_TERMS[name]] : TERMS[name]
+    for (const m of collect(text, active)) {
       subtotals[name] += m.w
       evidenceByTactic[name].push({ phrase: m.text, start: m.start, end: m.end })
     }

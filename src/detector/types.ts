@@ -18,11 +18,20 @@ export const TACTIC_NAMES: readonly TacticName[] = [
   'extraction',
 ]
 
+/**
+ * Where the text came from (§5.6). A speech transcript is not an SMS: it has
+ * no sender, no punctuation, spells acronyms out as "o t p", and carries
+ * call-centre framing that never appears in a text message.
+ */
+export type Channel = 'text' | 'voice'
+
 /** What the user gives us to analyse. Sender is always optional (§5.5). */
 export interface DetectionInput {
   text: string
   /** Sender ID or number as the user typed it. Absent is normal. */
   sender?: string
+  /** Defaults to 'text'. Listen mode passes 'voice' (§5.6). */
+  channel?: Channel
 }
 
 export type SenderKind =

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { analyzeWithRules } from '../detector/rules.ts'
 import { buildSegments } from '../detector/evidence.ts'
-import type { DetectionResult } from '../detector/types.ts'
+import type { Channel, DetectionResult } from '../detector/types.ts'
 
 /**
  * /dev/engines — a raw test surface for the detector.
@@ -15,7 +15,7 @@ import type { DetectionResult } from '../detector/types.ts'
  * here and only here — a dev route is not the product.
  */
 
-const PRESETS: { label: string; sender: string; text: string }[] = [
+const PRESETS: { label: string; sender: string; text: string; channel?: Channel }[] = [
   {
     label: 'Scam · KYC',
     sender: '+91 98765 43210',
@@ -46,6 +46,18 @@ const PRESETS: { label: string; sender: string; text: string }[] = [
     sender: '+91 98450 11223',
     text: 'Hey, are we still on for dinner on Saturday? Let me know by tomorrow so I can book a table.',
   },
+  {
+    label: 'Voice · scam call',
+    sender: '',
+    channel: 'voice',
+    text: 'hello sir i am calling from the state bank of india head office your account has been temporarily suspended please listen to me carefully do not disconnect the call i will send you a code on your phone just read out the o t p to me for verification',
+  },
+  {
+    label: 'Voice · delivery call',
+    sender: '',
+    channel: 'voice',
+    text: 'hello sir i am calling from swiggy your delivery is at the gate can you please come down and share the delivery code with me',
+  },
 ]
 
 const VERDICT_ACCENT = {
@@ -64,11 +76,16 @@ const box: React.CSSProperties = {
 export function Engines() {
   const [text, setText] = useState(PRESETS[0]!.text)
   const [sender, setSender] = useState(PRESETS[0]!.sender)
+  const [channel, setChannel] = useState<Channel>('text')
 
   const result: DetectionResult | null = useMemo(() => {
     if (text.trim().length < 10) return null
-    return analyzeWithRules(sender.trim() ? { text, sender } : { text })
-  }, [text, sender])
+    return analyzeWithRules({
+      text,
+      channel,
+      ...(sender.trim() ? { sender } : {}),
+    })
+  }, [text, sender, channel])
 
   const segments = useMemo(() => {
     if (!result) return null
@@ -104,6 +121,7 @@ export function Engines() {
             onClick={() => {
               setText(p.text)
               setSender(p.sender)
+              setChannel(p.channel ?? 'text')
             }}
             style={{
               minHeight: 'var(--tap-min)',
@@ -135,6 +153,26 @@ export function Engines() {
           }}
         />
       </label>
+
+      <div style={{ display: 'flex', gap: 'var(--sp-2)' }}>
+        {(['text', 'voice'] as const).map((c) => (
+          <button
+            key={c}
+            onClick={() => setChannel(c)}
+            style={{
+              flex: 1,
+              minHeight: 'var(--tap-min)',
+              background: channel === c ? 'var(--surface-2)' : 'transparent',
+              color: channel === c ? 'var(--text)' : 'var(--text-muted)',
+              border: `1px solid ${channel === c ? 'var(--text-faint)' : 'var(--border)'}`,
+              borderRadius: 'var(--r-md)',
+              fontSize: 'var(--fs-sm)',
+            }}
+          >
+            {c === 'text' ? 'Text / SMS' : 'Voice transcript'}
+          </button>
+        ))}
+      </div>
 
       <label style={{ display: 'grid', gap: 'var(--sp-1)' }}>
         <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)' }}>
