@@ -147,6 +147,7 @@
   --dur-fast: 120ms;
   --dur-base: 220ms;
   --dur-slow: 420ms;
+  --dur-brand: 900ms; /* the one-time shield draw-in, Home only (§10.6) */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   /* Exponential ease-out. Decelerates hard, never overshoots. */
   --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
@@ -210,4 +211,16 @@
   --shadow-3: 0 16px 48px rgba(11, 11, 12, 0.18);
 
   --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--heat);
+}
+
+/* ---- reduced motion ----
+ * Every animation this file's consumers add must be listed here or gated in
+ * component code. §10.4 guardrail 4: the screen must be fully readable and
+ * fully static with this preference set. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
