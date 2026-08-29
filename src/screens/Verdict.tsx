@@ -14,10 +14,13 @@ import { IconCopy, IconCheck, IconShare } from '../ui/icons.tsx'
 export function Verdict({
   result,
   text,
+  pending = false,
   onAgain,
 }: {
   result: DetectionResult
   text: string
+  /** An on-device engine is still working behind this verdict (D13). */
+  pending?: boolean
   onAgain: () => void
 }) {
   const bannerRef = useRef<HTMLDivElement>(null)
@@ -80,6 +83,15 @@ export function Verdict({
       </div>
 
       <div className="screen__body">
+        {/* The honest version of a loading state: there is already an answer
+            on screen, and the phone is still working on a better one. */}
+        {pending && (
+          <div className="upgrading" role="status" aria-live="polite">
+            <span className="upgrading__dot" aria-hidden="true" />
+            <span>{copy.upgrading}</span>
+          </div>
+        )}
+
         <Findings result={result} text={text} />
 
         <div className="action-row">

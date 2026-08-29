@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { splitSender, classifySender } from '../detector/sender.ts'
-import { analyze } from '../detector/orchestrator.ts'
-import type { DetectionResult } from '../detector/types.ts'
+import type { DetectionInput } from '../detector/types.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
 import {
@@ -60,16 +59,19 @@ const EXAMPLES: Example[] = [
  * counted twice by the detector.
  */
 export function Check({
-  onResult,
+  onSubmit,
   onBack,
+  busy,
 }: {
-  onResult: (result: DetectionResult, text: string) => void
+  /** The orchestrator runs in App, because the on-device upgrade outlives
+   *  this screen (D13). */
+  onSubmit: (input: DetectionInput) => void
   onBack: () => void
+  busy: boolean
 }) {
   const [text, setText] = useState('')
   const [sender, setSender] = useState('')
   const [editingSender, setEditingSender] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   const tooShort = text.trim().length < MIN_CHARS
   const truncated = text.length > MAX_CHARS
@@ -102,25 +104,17 @@ export function Check({
   }, [])
 
   /**
-   * No padded delay and no rotating phase captions. The rules engine answers in
-   * single-digit milliseconds, and inventing work it is not doing would be both
-   * dishonest and a worse story than the real number (§9, integrity line).
+   * Hands off and returns. The deterministic verdict lands in milliseconds and
+   * App navigates on it; the on-device model upgrades it later (D13).
    */
-  const run = useCallback(async () => {
+  const run = useCallback(() => {
     if (tooShort || busy) return
-    setBusy(true)
-    const body = text.trim().slice(0, MAX_CHARS)
-    try {
-      const result = await analyze({
-        text: body,
-        channel: 'text',
-        ...(sender.trim() ? { sender: sender.trim() } : {}),
-      })
-      onResult(result, body)
-    } finally {
-      setBusy(false)
-    }
-  }, [tooShort, busy, text, sender, onResult])
+    onSubmit({
+      text: text.trim().slice(0, MAX_CHARS),
+      channel: 'text',
+      ...(sender.trim() ? { sender: sender.trim() } : {}),
+    })
+  }, [tooShort, busy, text, sender, onSubmit])
 
   const senderTone =
     signal.kind === 'dlt_header'

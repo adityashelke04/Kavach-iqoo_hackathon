@@ -2080,6 +2080,7 @@ session needs to know that is not already in this document.
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
+| P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
 | P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 
@@ -2566,6 +2567,50 @@ Two consequences worth recording:
   `VITE_*` value is compiled into the bundle. `api/analyze.ts` holds the key
   server-side and builds the prompt itself, so the endpoint cannot be used as a
   free general-purpose LLM proxy on the owner's account.
+
+### 2026-08-29 — D13 · The verdict is progressive
+
+An on-device 3B model produces a couple of hundred tokens of JSON in tens of
+seconds. The rules engine answers the same question in about five milliseconds.
+§6 as written would have blocked on the LLM, which means a thirty-second
+spinner in front of someone who has just been frightened by a message.
+
+That trade — a worse app for a better stage moment — is the wrong way round,
+and it collapses the first time the model is slow, cold, or unavailable.
+
+**Decided.** `analyzeProgressive` publishes the deterministic verdict
+immediately and publishes again when the fused verdict arrives. The screen
+fills in at once and sharpens in place. A slow or failed model costs the user
+nothing; it only ever adds.
+
+Consequences:
+
+- The analysis moved from `Check` into `App`. The upgrade outlives the screen
+  that started it, so running it inside `Check` would set state on an unmounted
+  component.
+- `ENGINE_TIMEOUTS.local` is 120 s, not 8 s. Nothing waits on it, so a short
+  budget would only throw away an answer the device already paid for.
+- A third engine preference, `none`, means deterministic-only. Listen mode uses
+  it for the live loop: a rolling transcript is re-analysed every couple of
+  seconds, and starting a thirty-second generation on each pass would queue
+  jobs faster than they finish and deliver the warning after the call ended.
+  The full stack runs once, on the final transcript, when the user stops.
+- The model preloads on app open rather than on first analysis, so the first
+  check is not also the first download (D6, §9).
+
+This also turns the weakness into the demo. The judge watches a verdict appear
+instantly and then visibly deepen, on a phone, with the network off — which is
+a better beat than a spinner that eventually resolves.
+
+**On the model tier.** The ceiling is not the phone. Chrome on Android caps
+`maxStorageBufferBindingSize`, commonly at 128 MiB, whatever the hardware, and
+a model whose largest weight binding exceeds it fails to load rather than
+running slowly. Tiers are therefore chosen from a measured number, not a spec
+sheet: `low` Gemma 3 1B, `standard` Llama 3.2 1B, `max` Qwen2.5 3B, with probe
+lists in `models.ts` for finding the real ceiling on device. The pitch runs on
+the iQOO, so the 7B/8B desktop candidates stay out of the tier table;
+promoting one means changing the demo device, which is a decision, not a config
+edit.
 
 ---
 

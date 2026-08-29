@@ -259,17 +259,28 @@ export function Listen({ onBack }: { onBack: () => void }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const simTimerRef = useRef<number | null>(null)
 
-  const runDetection = useCallback(async (buffer: string) => {
-    if (!buffer.trim()) return
-    setAnalyzing(true)
-    try {
-      const res = await analyze({ text: buffer, channel: 'voice' })
-      setResult(res)
-      if (res.verdict === 'danger') setInterrupted(true)
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [])
+  /**
+   * The live loop is deterministic-only.
+   *
+   * A rolling transcript is re-analysed every couple of seconds; starting a
+   * tens-of-seconds on-device generation on each pass would queue jobs faster
+   * than they finish and the warning would arrive after the call ended. The
+   * full stack runs once, on the final transcript, when the user stops.
+   */
+  const runDetection = useCallback(
+    async (buffer: string, deep = false) => {
+      if (!buffer.trim()) return
+      setAnalyzing(true)
+      try {
+        const res = await analyze({ text: buffer, channel: 'voice' }, deep ? 'local' : 'none')
+        setResult(res)
+        if (res.verdict === 'danger') setInterrupted(true)
+      } finally {
+        setAnalyzing(false)
+      }
+    },
+    [],
+  )
 
   const stop = useCallback(() => {
     wantRunning.current = false
@@ -283,7 +294,12 @@ export function Listen({ onBack }: { onBack: () => void }) {
       /* already stopped */
     }
     setPhase('stopped')
-  }, [])
+
+    // Now that nothing is streaming, spend the time on a full check of what
+    // was actually said.
+    const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
+    if (buffer.trim()) void runDetection(buffer, true)
+  }, [runDetection])
 
   const start = useCallback(() => {
     if (simTimerRef.current !== null) {

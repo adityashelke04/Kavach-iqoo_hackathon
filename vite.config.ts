@@ -41,6 +41,22 @@ export default defineConfig({
         // decision will silently break the airplane-mode beat.
         globIgnores: ['**/llm-runtime-*.js'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+
+        // ...but the airplane-mode beat needs it offline. Caching it on first
+        // use keeps the install small and still leaves the app fully offline
+        // from the second run, which is exactly when the demo needs it. Model
+        // weights are not here: WebLLM stores those itself (§8.1).
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/llm-runtime-.*\.js$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'kavach-llm-runtime',
+              expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

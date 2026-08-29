@@ -36,6 +36,7 @@ export const copy = {
   verdict_safe_head: 'Looks legitimate',
   verdict_safe_sub: 'Nothing manipulative found.',
 
+  upgrading: 'Taking a closer look on your phone…',
   why_title: 'Why we think so',
   message_title: 'The message',
   message_hint: 'The orange marks are the parts that worried us.',

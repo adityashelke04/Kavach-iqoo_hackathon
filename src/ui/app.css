@@ -1327,3 +1327,27 @@
 .message-hint {
   margin-bottom: var(--sp-3);
 }
+
+/* Progressive verdict (D13): an answer is already on screen and a slower
+   on-device engine is still working on a better one. Deliberately quiet — it
+   is a status, not a wait. */
+.upgrading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.upgrading__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--heat);
+  animation: blink 1400ms var(--ease-out) infinite;
+}
