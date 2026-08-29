@@ -14,6 +14,9 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 
+    // We import with explicit .ts extensions so Node 24 can run the detector
+    // directly (type stripping) for the corpus harness, without a build step.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",

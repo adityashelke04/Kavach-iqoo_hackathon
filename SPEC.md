@@ -988,6 +988,31 @@ orchestrator and handed to this engine; it does not classify the sender itself.
 | `kind: 'dlt_header'` | **Modest negative.** Never zeroes the score, never forces `safe` (§5.5). |
 | `kind: 'unknown'` | Zero. No adjustment in either direction. |
 
+#### Conclusive signals
+
+Some behaviours have essentially no legitimate counterpart: a bank never asks
+you to install AnyDesk, and nobody legitimate requires a fee before releasing a
+prize you have won. These set a confidence **floor** rather than adding weight,
+because their strength does not depend on what else is in the message.
+
+Added after the first tuning pass, when holdout testing showed the weighting
+model capped any single tactic well below the danger threshold — "install
+AnyDesk and share the code with me" scored 0.56 and came back as merely
+`caution`, which is wrong.
+
+Two guards, both load-bearing:
+
+1. **Negation guard.** "Do not share the OTP" contains the exact substring
+   "share the OTP" and means the opposite. A conclusive match preceded by a
+   negator within the same clause is discarded. Without this, every legitimate
+   bank SMS trips the floor and the §12 gate fails.
+2. **`unless` contexts.** A courier or cab driver legitimately asks for an OTP
+   at handover. Found by holdout testing: an Uber "share OTP 7719 with your
+   driver" message was being returned as `danger`.
+
+A floor only applies when at least one tactic registered, so it can never
+produce a `danger` verdict with nothing to show the user (§4 rule 4).
+
 #### Negative terms — the false-positive defence
 
 This is what keeps a genuine bank SMS out of the red, and it is the measure that
@@ -1760,7 +1785,7 @@ glance rather than inferred.
 
 ---
 
-### ☐ P1 — Detector core · ~2h
+### ☑ P1 — Detector core · ~2h  — **DONE**
 
 **Goal:** a working detector with zero dependencies, and a test that pins it.
 
@@ -1999,7 +2024,8 @@ session needs to know that is not already in this document.
 
 | Phase | Finished | Notes for the next session |
 |---|---|---|
-| | | |
+| P0 | code complete | Deployed URL + on-device WebGPU check still pending. `/dev/probe` reports `isSecureContext` first — see the secure-context trap above. |
+| P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | | | |
 
 ---
@@ -2079,6 +2105,19 @@ A plain Node script, no test framework needed:
 
 Optionally accept `--engine=cloud` to spot-check the LLM path manually. Never
 gate the build on a non-deterministic engine.
+
+### Holdout testing — do this every time the engine is tuned
+
+The corpus is a regression net, not a measure of quality. Tuning against it and
+then reporting its own numbers is circular: the first tuning pass reached 100%
+on the corpus while still returning `safe` for a job scam and `danger` for a
+legitimate Uber OTP message.
+
+**Before believing any corpus number, write five to ten fresh messages the
+engine has never seen and run those.** Every bug found this way then gets
+promoted into the corpus as a permanent regression guard — the entries marked
+`holdout —` in the corpus files came from exactly that loop, and each one
+represents a real failure that the corpus alone had hidden.
 
 ### Unit tests worth writing (only these)
 

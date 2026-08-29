@@ -1,5 +1,6 @@
 import { useRoute } from './router'
 import { Probe } from './dev/Probe'
+import { Engines } from './dev/Engines'
 
 /**
  * P0 shell. Home is a placeholder until P6 (SPEC.md §11).
@@ -11,6 +12,7 @@ export default function App() {
   const [path, navigate] = useRoute()
 
   if (path === '/dev/probe') return <Probe />
+  if (path === '/dev/engines') return <Engines />
 
   return (
     <main
@@ -60,21 +62,31 @@ export default function App() {
         >
           Dev routes
         </h2>
-        <button
-          onClick={() => navigate('/dev/probe')}
-          style={{
-            minHeight: 'var(--tap-min)',
-            width: '100%',
-            background: 'var(--surface-2)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-md)',
-            fontSize: 'var(--fs-md)',
-            cursor: 'pointer',
-          }}
-        >
-          /dev/probe — device capability report
-        </button>
+        <div style={{ display: 'grid', gap: 'var(--sp-2)' }}>
+          {[
+            ['/dev/engines', 'Engine workbench — paste a message, see the verdict'],
+            ['/dev/probe', 'Device capability report'],
+          ].map(([href, label]) => (
+            <button
+              key={href}
+              onClick={() => navigate(href!)}
+              style={{
+                minHeight: 'var(--tap-min)',
+                width: '100%',
+                background: 'var(--surface-2)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                fontSize: 'var(--fs-md)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--sp-3)',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </nav>
     </main>
   )

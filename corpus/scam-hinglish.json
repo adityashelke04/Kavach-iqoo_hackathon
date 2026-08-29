@@ -1,0 +1,52 @@
+[
+  {
+    "id": "scam-hi-001",
+    "lang": "hinglish",
+    "sender": "+91 89012 34567",
+    "text": "Main SBI bank se bol raha hoon. Aapka account band ho jayega agar aaj hi KYC update nahi kiya. Turant OTP bhejiye verification ke liye.",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "phone_number",
+    "source": "seed — Hinglish KYC pattern"
+  },
+  {
+    "id": "scam-hi-002",
+    "lang": "hinglish",
+    "sender": "+91 78901 23456",
+    "text": "Main CBI se bol raha hoon, aapke naam pe money laundering ka case file hua hai. Kisi ko mat batana, ye confidential matter hai. Call mat kaatiye, line par rahiye.",
+    "expect": "danger",
+    "expectTactics": ["authority", "isolation"],
+    "expectSenderKind": "phone_number",
+    "source": "seed — Hinglish digital arrest"
+  },
+  {
+    "id": "scam-hi-003",
+    "lang": "hinglish",
+    "sender": "+91 95678 90123",
+    "text": "Aapka parcel customs me atka hai. Is UPI id pe Rs.2500 bhej dijiye, refund ho jayega. Warna parcel wapas chala jayega aaj hi.",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "phone_number",
+    "source": "seed — Hinglish parcel/customs"
+  },
+  {
+    "id": "scam-hi-004",
+    "lang": "hinglish",
+    "sender": "+91 87654 32109",
+    "text": "Sir aapka bijli connection abhi kat jayega. Bill update nahi hua hai. Turant is number pe call kariye 8765432109 aur AnyDesk app install kar lijiye.",
+    "expect": "danger",
+    "expectTactics": ["urgency", "extraction"],
+    "expectSenderKind": "phone_number",
+    "source": "seed — Hinglish electricity + remote access"
+  },
+  {
+    "id": "scam-hi-005",
+    "lang": "hinglish",
+    "sender": "+91 70987 65432",
+    "text": "Badhai ho! Aapne Rs.10,00,000 ka lucky draw jeeta hai. Prize money claim karne ke liye processing fee Rs.4999 bhejiye aur apna bank account number aur OTP share kariye.",
+    "expect": "danger",
+    "expectTactics": ["extraction"],
+    "expectSenderKind": "phone_number",
+    "source": "seed — Hinglish lottery"
+  }
+]

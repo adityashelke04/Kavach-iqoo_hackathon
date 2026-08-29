@@ -1,0 +1,215 @@
+[
+  {
+    "id": "scam-en-001",
+    "lang": "en",
+    "sender": "+91 98765 43210",
+    "text": "Dear Customer, your SBI account will be blocked within 24 hours due to incomplete KYC. Update your KYC immediately at http://sbi-kyc-verify.in/update to avoid suspension.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — canonical KYC-suspension pattern"
+  },
+  {
+    "id": "scam-en-002",
+    "lang": "en",
+    "sender": "+91 91234 56780",
+    "text": "This is Inspector Rajesh Kumar from Mumbai Cyber Crime Branch. An FIR has been registered against your Aadhaar in a money laundering case. Do not discuss this case with anyone including family members. Stay on the line for verification.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "isolation"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — digital arrest pattern"
+  },
+  {
+    "id": "scam-en-003",
+    "lang": "en",
+    "sender": "+91 70123 45678",
+    "text": "Your parcel has been seized by Customs Department. Case ID FED/2026/8841. Pay a clearance fee of Rs.4999 to UPI ID customs.clear@okaxis within 2 hours or legal action will be taken.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — customs parcel pattern"
+  },
+  {
+    "id": "scam-en-004",
+    "lang": "en",
+    "sender": "+91 88990 11223",
+    "text": "Sir I am calling from HDFC bank fraud prevention department. To secure your account please install AnyDesk from Play Store and share the 9 digit code with me. Do not disconnect the call.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "isolation",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — remote access pattern"
+  },
+  {
+    "id": "scam-en-005",
+    "lang": "en",
+    "sender": "+91 99887 76655",
+    "text": "Congratulations! You have won Rs.25,00,000 in the KBC lucky draw. To claim your prize money please pay a refundable processing fee of Rs.8500 and share your bank account number and OTP for verification.",
+    "expect": "danger",
+    "expectTactics": [
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — lottery pattern"
+  },
+  {
+    "id": "scam-en-006",
+    "lang": "en",
+    "sender": "+91 76543 21098",
+    "text": "Your electricity connection will be disconnected tonight at 9:30 PM because your previous month bill was not updated. Please contact our officer immediately on 9876543210.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — electricity disconnection pattern"
+  },
+  {
+    "id": "scam-en-007",
+    "lang": "en",
+    "sender": "+91 82345 67890",
+    "text": "TRAI NOTICE: Your mobile number will be deactivated within 2 hours as it is linked to illegal activities. Press 9 to speak to a police officer. Do not tell anyone about this investigation, it is strictly confidential.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "isolation"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — TRAI disconnection pattern"
+  },
+  {
+    "id": "scam-en-008",
+    "lang": "en",
+    "sender": "+91 90000 12345",
+    "text": "Dear user, your debit card has been blocked. To reactivate share your card number, CVV and the OTP received on your registered mobile. Call this number immediately.",
+    "expect": "danger",
+    "expectTactics": [
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — card reactivation pattern"
+  },
+  {
+    "id": "scam-en-009",
+    "lang": "en",
+    "sender": "+44 7700 900123",
+    "text": "Hello, I am contacting you regarding an unclaimed inheritance of USD 4.5 million. Please keep this matter strictly confidential and do not tell anyone. Send your bank account details and a processing fee to begin the transfer.",
+    "expect": "danger",
+    "expectTactics": [
+      "isolation",
+      "extraction"
+    ],
+    "expectSenderKind": "international",
+    "source": "seed — inheritance pattern, international sender"
+  },
+  {
+    "id": "scam-en-010",
+    "lang": "en",
+    "sender": "+91 73456 78901",
+    "text": "Part time job offer! Earn Rs.5000 daily by liking YouTube videos from home. To register, pay a one time registration fee of Rs.999 and WhatsApp us on 7345678901.",
+    "expect": "danger",
+    "expectTactics": [
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — task/job scam pattern"
+  },
+  {
+    "id": "scam-en-011",
+    "lang": "en",
+    "sender": null,
+    "text": "URGENT: Your Amazon order of iPhone 15 worth Rs.79,999 has been confirmed. If you did not place this order click here to cancel: bit.ly/amzn-cancel-order",
+    "expect": "danger",
+    "expectTactics": [
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "unknown",
+    "source": "seed — fake order pattern, no sender captured"
+  },
+  {
+    "id": "scam-en-012",
+    "lang": "en",
+    "sender": "+91 96543 21087",
+    "text": "Your account has been frozen by order of the Enforcement Directorate. This is a confidential investigation under the Official Secrets Act. Do not visit the branch or contact the police. Failure to comply will result in immediate arrest.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "isolation"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "seed — ED / digital arrest escalation"
+  },
+  {
+    "id": "scam-en-013",
+    "lang": "en",
+    "sender": "+91 78123 45690",
+    "text": "Your Netflix subscription payment failed. Update your payment details within 12 hours to avoid cancellation: netflx-billing.co/renew",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "holdout — brand impersonation + lookalike domain; engine missed this before tuning"
+  },
+  {
+    "id": "scam-en-014",
+    "lang": "en",
+    "sender": "+91 96321 45870",
+    "text": "Papa, this is my new number. My old phone broke. Can you send Rs.15000 to this UPI urgently? I will explain later, please dont tell mummy.",
+    "expect": "danger",
+    "expectTactics": [
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "holdout — family impersonation, the pattern that hurts parents most"
+  },
+  {
+    "id": "scam-en-015",
+    "lang": "en",
+    "sender": "+91 88776 65544",
+    "text": "Your PAN card has been suspended by Income Tax Department. Verify your Aadhaar and PAN details immediately at incometax-verify.in or face legal action.",
+    "expect": "danger",
+    "expectTactics": [
+      "authority",
+      "urgency",
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "holdout — PAN/Aadhaar suspension"
+  },
+  {
+    "id": "scam-en-016",
+    "lang": "en",
+    "sender": "+91 70011 22334",
+    "text": "Dear candidate, you are selected for Amazon work from home. Deposit Rs.2500 security amount to activate your account and start earning.",
+    "expect": "danger",
+    "expectTactics": [
+      "extraction"
+    ],
+    "expectSenderKind": "phone_number",
+    "source": "holdout — job scam; engine returned SAFE before tuning"
+  }
+]

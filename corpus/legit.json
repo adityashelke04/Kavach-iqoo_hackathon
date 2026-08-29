@@ -1,0 +1,173 @@
+[
+  {
+    "id": "legit-001",
+    "lang": "en",
+    "sender": "VM-SBIINB",
+    "text": "Dear Customer, Rs.2,500.00 has been debited from A/c XX8842 on 28-Aug-26 to UPI/adityaenterprises. Avl Bal Rs.18,340.20. Not you? Call 18001111109. Do not share OTP/CVV/PIN with anyone. -SBI",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — the canonical hard case: a real debit alert that mentions OTP, CVV and PIN"
+  },
+  {
+    "id": "legit-002",
+    "lang": "en",
+    "sender": "AD-HDFCBK",
+    "text": "OTP for your transaction of Rs.1,299.00 at AMAZON is 458213. Valid for 10 minutes. HDFC Bank never asks for your OTP. Do not share it with anyone.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — a real OTP message, the single most likely false positive"
+  },
+  {
+    "id": "legit-003",
+    "lang": "en",
+    "sender": "VK-ICICIB",
+    "text": "Your ICICI Bank Credit Card XX4471 has been used for Rs.3,450.00 at SWIGGY on 27-Aug-26. If this was not you, report immediately at 18002662 or on iMobile Pay.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — transaction alert with an urgency-adjacent 'immediately'"
+  },
+  {
+    "id": "legit-004",
+    "lang": "en",
+    "sender": "JD-AMAZON",
+    "text": "Your Amazon package with Echo Dot has been delivered. Thank you for shopping with us. Track or return at amazon.in/orders",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — delivery confirmation"
+  },
+  {
+    "id": "legit-005",
+    "lang": "en",
+    "sender": "AX-BLUDRT",
+    "text": "Your Blue Dart shipment AWB 78451236 is out for delivery today and will arrive between 2 PM and 6 PM. Please keep your ID ready.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — courier, mentions a time window"
+  },
+  {
+    "id": "legit-006",
+    "lang": "en",
+    "sender": "VM-KOTAKB",
+    "text": "Dear Customer, your Kotak Bank account statement for August 2026 is now available. Avl Bal Rs.45,200.00 as on 31-Aug-26. This is an automated message, do not reply.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — statement notification"
+  },
+  {
+    "id": "legit-007",
+    "lang": "en",
+    "sender": "TX-AXISBK",
+    "text": "Rs.15,000.00 credited to your Axis Bank A/c XX1120 on 01-Sep-26 by NEFT. Ref No AXISN52284410. Avl Bal Rs.61,780.45.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — credit alert with reference number"
+  },
+  {
+    "id": "legit-008",
+    "lang": "en",
+    "sender": "VM-BESCOM",
+    "text": "Your BESCOM electricity bill of Rs.1,842.00 for August 2026 is due on 15-Sep-26. Pay online at bescom.karnataka.gov.in or at any authorised centre.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — the legitimate twin of the electricity scam"
+  },
+  {
+    "id": "legit-009",
+    "lang": "en",
+    "sender": "AD-IRCTCI",
+    "text": "Booking confirmed. PNR 4521887340, Train 12658, Bengaluru to Chennai, 12-Sep-26, Coach B4 Seat 32. Happy journey.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — travel confirmation"
+  },
+  {
+    "id": "legit-010",
+    "lang": "en",
+    "sender": "VM-SWIGGY",
+    "text": "Your order from Meghana Foods is on the way. Arriving in 22 minutes. Your delivery OTP is 4471. Share it with the delivery partner only.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — hard case: a legitimate message that DOES ask you to share an OTP"
+  },
+  {
+    "id": "legit-011",
+    "lang": "en",
+    "sender": "AD-UIDAI",
+    "text": "Your Aadhaar update request URN 0000/00123/45678 has been received and is under process. You will be notified once completed. This is an automated message.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — genuine government message from a registered header"
+  },
+  {
+    "id": "legit-012",
+    "lang": "en",
+    "sender": "+91 98450 11223",
+    "text": "Hey, are we still on for dinner on Saturday? Let me know by tomorrow so I can book a table.",
+    "expect": "safe",
+    "expectSenderKind": "phone_number",
+    "source": "seed — CONTEXT RULE TEST: a personal number with a deadline. Must not be flagged (§5.5)."
+  },
+  {
+    "id": "legit-013",
+    "lang": "en",
+    "sender": "+91 99001 22334",
+    "text": "Good morning! Forwarding the Ganesh Chaturthi invite from our building association. Please come by 6 PM on Saturday, and do tell your family also.",
+    "expect": "safe",
+    "expectSenderKind": "phone_number",
+    "source": "seed — CONTEXT RULE TEST: WhatsApp forward from a personal number that says 'tell your family'"
+  },
+  {
+    "id": "legit-014",
+    "lang": "en",
+    "sender": "VM-ZOMATO",
+    "text": "Flat 50% off on your next 3 orders! Use code HUNGRY50. Offer valid till 5 September. T&C apply.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "seed — promotional with a real deadline"
+  },
+  {
+    "id": "legit-015",
+    "lang": "hinglish",
+    "sender": "+91 94820 55667",
+    "text": "Bhai kal office aa raha hai na? Turant batana, manager pooch raha tha.",
+    "expect": "safe",
+    "expectSenderKind": "phone_number",
+    "source": "seed — CONTEXT RULE TEST: Hinglish personal message using 'turant'"
+  },
+  {
+    "id": "legit-016",
+    "lang": "en",
+    "sender": "VM-UBERIN",
+    "text": "Your Uber ride with Suresh is arriving. Vehicle KA 05 MJ 8842, white Swift Dzire. Share OTP 7719 with your driver.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "holdout — REGRESSION GUARD: was flagged DANGER. A cab OTP is legitimately shared."
+  },
+  {
+    "id": "legit-017",
+    "lang": "en",
+    "sender": "AD-APOLLO",
+    "text": "Reminder: your appointment at Apollo Clinic is tomorrow at 11:00 AM. To reschedule call 08041234567.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "holdout — appointment reminder with a landline"
+  },
+  {
+    "id": "legit-018",
+    "lang": "en",
+    "sender": "JM-JIOPAY",
+    "text": "Rs.499 has been debited for your Jio recharge. Your plan is valid till 28-Sep-26. Thank you for using Jio.",
+    "expect": "safe",
+    "expectSenderKind": "dlt_header",
+    "source": "holdout — telecom recharge receipt"
+  },
+  {
+    "id": "legit-019",
+    "lang": "en",
+    "sender": "+91 99887 12345",
+    "text": "Mummy I reached college safely. Will call you in the evening after class.",
+    "expect": "safe",
+    "expectSenderKind": "phone_number",
+    "source": "holdout — CONTEXT RULE: personal number, mentions calling"
+  }
+]
