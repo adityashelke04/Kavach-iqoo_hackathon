@@ -8,6 +8,8 @@ import type { Channel } from '../src/detector/types.ts'
  * Holds the OPENROUTER_API_KEY securely and builds prompts server-side.
  */
 
+declare const process: { env: Record<string, string | undefined> }
+
 const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite'
 const MAX_CHARS = 4000
 const UPSTREAM_TIMEOUT_MS = 12_000
