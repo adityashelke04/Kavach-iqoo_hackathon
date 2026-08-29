@@ -61,6 +61,7 @@ npm run build         # production build
 npm run test:corpus   # corpus regression + false-positive gate (hard gate)
 npm run test:smoke    # renders every screen against real engine output
 npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
+npm run test:feedback # adaptive weighting, and that it cannot break the gate (D14)
 npm run test:mobile   # renders at 412x915 in Chrome; asserts no sideways
                       # scroll, no tap target under 44px, no percentage in the
                       # DOM, and drives Check -> Verdict for scam and legit

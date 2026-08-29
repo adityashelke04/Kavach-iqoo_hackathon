@@ -11,7 +11,8 @@
     "test:corpus": "node scripts/test-corpus.mjs",
     "test:smoke": "node scripts/smoke.mjs",
     "test:mobile": "node scripts/mobile-check.mjs",
-    "test:fusion": "node scripts/test-fusion.mjs"
+    "test:fusion": "node scripts/test-fusion.mjs",
+    "test:feedback": "node scripts/test-feedback.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",

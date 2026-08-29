@@ -2612,6 +2612,50 @@ the iQOO, so the 7B/8B desktop candidates stay out of the tier table;
 promoting one means changing the demo device, which is a decision, not a config
 edit.
 
+### 2026-08-29 — D14 · On-device adaptive weighting
+
+The verdict screen asks "was this right?". A correction nudges the weights of
+whichever tactics actually fired, the adjustment is stored on the device, and
+the next analysis uses it. Nothing is transmitted and nothing is shared between
+users.
+
+**Name it accurately.** This is a bounded online weight update driven by a
+reward signal — closest in shape to a perceptron update or a contextual bandit.
+It is not deep reinforcement learning: there is no policy network, no value
+function, no episode, no credit assignment across time. Call it *on-device
+adaptive weighting* and explain the mechanism. Calling it RL invites the
+question "which algorithm, and what is your reward function", and the honest
+answer to that undercuts the claim.
+
+(For the record, since it caused confusion: **LiteRT-LM is not reinforcement
+learning either.** LiteRT is "Lite Runtime", the renamed TensorFlow Lite, and
+LiteRT-LM is an inference runtime. It trains nothing.)
+
+**Why it cannot break the false-positive gate.** A weight a user can push
+around is a weight a user can break, and the one thing this product cannot
+afford is to start flagging real bank messages. Four constraints, enforced in
+code rather than by intention:
+
+1. Multipliers are clamped to ±25%. Feedback can shade a decision; it can never
+   invent or erase one. §4's override rules are untouched by it.
+2. Only tactics that actually fired are adjusted. With no evidence there is
+   nothing to attribute the correction to, so nothing moves.
+3. Agreement decays adjustments back toward neutral, so corrections cannot
+   ratchet a weight to the clamp and leave it there.
+4. The corpus gate never sees them. The harness runs in Node, where there is no
+   `localStorage`, so the multiplier is 1 and the gate measures shipped
+   defaults.
+
+`npm run test:feedback` proves all four, and ends with the test that matters:
+every tactic driven to maximum sensitivity — the direction that causes false
+positives — and the entire legitimate corpus run through the engine, asserting
+that none of it reaches `danger`.
+
+The learned state is readable in plain language under "How we checked", with a
+reset. It is described in words ("more sensitive to rushing you") rather than
+numbers, because a multiplier rendered on screen next to a verdict is one
+misreading away from the score §4 forbids.
+
 ---
 
 ## §17 · Glossary

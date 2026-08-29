@@ -37,6 +37,20 @@ export const copy = {
   verdict_safe_sub: 'Nothing manipulative found.',
 
   upgrading: 'Taking a closer look on your phone…',
+
+  // Adaptive weighting (D14). Phrased as a question about this answer, not as
+  // "train the AI" — the person is telling us we got it wrong, not volunteering
+  // for a labelling task.
+  feedback_q: 'Was this right?',
+  feedback_yes: 'Yes',
+  feedback_no: 'No',
+  feedback_thanks_right: 'Thanks — noted.',
+  feedback_thanks_wrong: 'Thanks. Kavach will weigh this differently next time.',
+  learned_title: 'What this phone has learned',
+  learned_none: 'Nothing yet. Your answers never leave this phone.',
+  learned_more: 'more sensitive to',
+  learned_less: 'less sensitive to',
+  learned_reset: 'Reset what it learned',
   why_title: 'Why we think so',
   message_title: 'The message',
   message_hint: 'The orange marks are the parts that worried us.',

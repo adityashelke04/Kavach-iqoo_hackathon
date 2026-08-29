@@ -7,6 +7,13 @@ import type {
   TacticName,
 } from '../../detector/types.ts'
 import { buildSegments } from '../../detector/evidence.ts'
+import {
+  recordFeedback,
+  feedbackState,
+  resetFeedback,
+  type FeedbackState,
+} from '../../detector/feedback.ts'
+import { TACTIC_NAMES } from '../../detector/types.ts'
 import { copy, TACTIC_LABELS } from '../copy.ts'
 import {
   IconCopy,
@@ -230,6 +237,63 @@ export function NextMove({ text }: { text: string }) {
 }
 
 /* ==========================================================================
+   5b. Was this right? — on-device adaptive weighting (D14)
+   ========================================================================== */
+
+/**
+ * One question, two taps, no account.
+ *
+ * The direction of the correction is read from the verdict rather than asked
+ * for: if we warned and the user says no, the tactics that fired over-fired;
+ * if we cleared it and the user says no, they under-fired. Asking which would
+ * be one more thing between a frightened person and their answer.
+ */
+export function FeedbackPrompt({ result }: { result: DetectionResult }) {
+  const [answered, setAnswered] = useState<'right' | 'wrong' | null>(null)
+
+  const answer = useCallback(
+    (wasRight: boolean) => {
+      recordFeedback(result, wasRight)
+      setAnswered(wasRight ? 'right' : 'wrong')
+    },
+    [result],
+  )
+
+  if (answered) {
+    return (
+      <p className="hint center" role="status">
+        {answered === 'right' ? copy.feedback_thanks_right : copy.feedback_thanks_wrong}
+      </p>
+    )
+  }
+
+  return (
+    <div className="feedback">
+      <span className="feedback__q">{copy.feedback_q}</span>
+      <div className="action-row">
+        <button type="button" className="chip" onClick={() => answer(true)}>
+          {copy.feedback_yes}
+        </button>
+        <button type="button" className="chip" onClick={() => answer(false)}>
+          {copy.feedback_no}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Plain-language summary of the learned weights. No numbers about the message. */
+function describeLearning(state: FeedbackState): string[] {
+  const out: string[] = []
+  for (const name of TACTIC_NAMES) {
+    const v = state.adjustments[name] ?? 1
+    if (v > 1.02) out.push(`${copy.learned_more} ${TACTIC_LABELS[name].toLowerCase()}`)
+    else if (v < 0.98) out.push(`${copy.learned_less} ${TACTIC_LABELS[name].toLowerCase()}`)
+  }
+  return out
+}
+
+/* ==========================================================================
    6. How we checked — the technical proof, one tap away
    ========================================================================== */
 
@@ -264,8 +328,40 @@ export function HowWeChecked({ result }: { result: DetectionResult }) {
           <span className="meta-row__k">{copy.how_sent}</span>
           <span className="meta-row__v">{copy.how_sent_no}</span>
         </div>
+
+        <LearnedSummary />
       </div>
     </details>
+  )
+}
+
+/** What the feedback loop has changed, and the way to undo it. */
+function LearnedSummary() {
+  const [state, setState] = useState<FeedbackState>(() => feedbackState())
+  const changes = describeLearning(state)
+
+  return (
+    <>
+      <h3 className="panel__title learned-title">{copy.learned_title}</h3>
+      {changes.length === 0 ? (
+        <p className="tactic__note">{copy.learned_none}</p>
+      ) : (
+        <>
+          <ul className="learned-list">
+            {changes.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setState(resetFeedback())}
+          >
+            {copy.learned_reset}
+          </button>
+        </>
+      )}
+    </>
   )
 }
 
@@ -317,6 +413,8 @@ export function Findings({ result, text }: { result: DetectionResult; text: stri
       {result.verdict !== 'safe' && <TacticList tactics={result.tactics} />}
 
       {result.verdict !== 'safe' && <NextMove text={result.nextMove} />}
+
+      <FeedbackPrompt result={result} />
 
       <HowWeChecked result={result} />
 

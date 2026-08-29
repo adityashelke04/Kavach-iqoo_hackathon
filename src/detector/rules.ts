@@ -13,6 +13,7 @@ import { CONCLUSIVE, NEGATIVES, TERMS, VOICE_TERMS } from './terms.ts'
 import { classifySender } from './sender.ts'
 import { decideVerdict } from './verdict.ts'
 import { TACTIC_LABELS } from '../ui/copy.ts'
+import { tacticAdjustment } from './feedback.ts'
 
 /**
  * RuleDetector — SPEC.md §8.3.
@@ -324,7 +325,10 @@ export function analyzeWithRules(
   let weighted = 0
   for (const name of TACTIC_NAMES) {
     if (subtotals[name] < PRESENCE[name]) continue
-    weighted += TACTIC_WEIGHT[name] * saturate(subtotals[name])
+    // The learned multiplier (D14) is clamped to +/-25% and is 1 until the
+    // user has corrected something, so this line is a no-op on a fresh install
+    // and in the corpus harness, which runs without localStorage.
+    weighted += TACTIC_WEIGHT[name] * tacticAdjustment(name) * saturate(subtotals[name])
     tactics.push({
       name,
       label: TACTIC_LABELS[name],

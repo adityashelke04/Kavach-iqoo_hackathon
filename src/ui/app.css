@@ -1351,3 +1351,35 @@
   background: var(--heat);
   animation: blink 1400ms var(--ease-out) infinite;
 }
+
+/* "Was this right?" (D14). A quiet question, not a call to action. */
+.feedback {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.feedback__q {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.learned-list {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-5);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.learned-title {
+  margin-top: var(--sp-5);
+}
