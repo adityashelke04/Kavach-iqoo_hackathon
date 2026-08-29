@@ -1,4 +1,4 @@
-import type { Channel } from './types.ts'
+import type { Channel, RuleBriefing, ReconsiderationPrompt } from './types.ts'
 
 /**
  * The one prompt both LLM engines use — SPEC.md §8.1, §8.2.
@@ -93,11 +93,49 @@ export interface PromptContext {
   channel: Channel
   /** Plain description of the sender, or null when none was given (D9). */
   senderFact: string | null
+  /** The rules engine's own read of this message, as context, not a verdict (D15). */
+  briefing?: RuleBriefing
+  /** Present only on the one bounded second call an engine may receive (D15). */
+  reconsider?: ReconsiderationPrompt
+}
+
+/**
+ * Render what a deterministic keyword scan already found, as context for the
+ * model — never as a verdict, and never with a number (D15).
+ */
+export function renderBriefing(briefing: RuleBriefing): string {
+  const lines = briefing.tactics.map(
+    (t) => `${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+  )
+  return [
+    'A separate keyword scan already ran on this message and found possible signs of:',
+    lines.join('; '),
+    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or add to this. Check specifically for anything it would have missed.',
+  ].join('\n')
+}
+
+/**
+ * Render the one bounded second-look prompt an engine sees when the audit
+ * step found a concrete gap in its first answer (D15).
+ */
+export function renderReconsideration(reconsider: ReconsiderationPrompt): string {
+  const { priorExplanation, missingTactic } = reconsider
+  return [
+    `You already answered this once. Your explanation was: "${priorExplanation}"`,
+    `A keyword scan independently found a possible ${missingTactic.name} signal your answer did not address, matching: ${missingTactic.matchedPhrases.map((p) => `"${p}"`).join(', ')}.`,
+    'Look at the message again. If this changes your reading, update your tactics and confidence to reflect it. If you still disagree, keep your answer, but make sure "explanation" says why this specific point does not change your reading.',
+  ].join('\n')
 }
 
 /** The user-turn content. Kept separate from the system prompt so a local
  *  model with a small context window can be given the same thing. */
-export function buildUserPrompt({ text, channel, senderFact }: PromptContext): string {
+export function buildUserPrompt({
+  text,
+  channel,
+  senderFact,
+  briefing,
+  reconsider,
+}: PromptContext): string {
   const parts: string[] = []
 
   if (channel === 'voice') parts.push(VOICE_NOTE)
@@ -106,6 +144,14 @@ export function buildUserPrompt({ text, channel, senderFact }: PromptContext): s
     parts.push(`Established fact about the sender: ${senderFact}`)
   } else {
     parts.push('The sender is unknown. Do not speculate about it.')
+  }
+
+  if (briefing && briefing.tactics.length > 0) {
+    parts.push(renderBriefing(briefing))
+  }
+
+  if (reconsider) {
+    parts.push(renderReconsideration(reconsider))
   }
 
   parts.push(

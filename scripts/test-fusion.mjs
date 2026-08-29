@@ -20,6 +20,9 @@ const { classifySender } = await import(mod('src/detector/sender.ts'))
 const { validateResult } = await import(mod('src/detector/validate.ts'))
 const { fuse, fuseConfidence, mergeTactics, LLM_WEIGHT } = await import(mod('src/detector/fuse.ts'))
 const { resultFromLlm, extractJson, LlmContractError } = await import(mod('src/detector/llm.ts'))
+const { buildUserPrompt, renderBriefing, renderReconsideration } = await import(
+  mod('src/detector/prompt.ts')
+)
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', bold: '\x1b[1m' }
 let failed = 0
@@ -270,6 +273,44 @@ group('mergeTactics')
   check(
     merged[0].evidence.length === 1 && merged[0].evidence[0].start === 5,
     'an unresolved span is upgraded when the other engine located it',
+  )
+}
+
+/* ------------------------------------------------------------------ */
+group('buildUserPrompt — briefing and reconsideration (D15)')
+
+{
+  const plain = buildUserPrompt({ text: 'hello', channel: 'text', senderFact: null })
+  check(!plain.includes('keyword scan'), 'no briefing text appears when none is given')
+}
+
+{
+  const briefing = { tactics: [{ name: 'extraction', matchedPhrases: ['share the OTP'] }] }
+  const withBriefing = buildUserPrompt({ text: 'hello', channel: 'text', senderFact: null, briefing })
+  check(withBriefing.includes('share the OTP'), 'a briefed matched phrase is included verbatim')
+  check(withBriefing.includes('extraction'), 'the briefed tactic name is included')
+  check(
+    renderBriefing(briefing).includes('confirm, refine, or add'),
+    'the briefing text instructs the model to read for itself, not just repeat the scan',
+  )
+}
+
+{
+  const reconsider = {
+    priorExplanation: 'This looks like a routine notice.',
+    missingTactic: { name: 'isolation', matchedPhrases: ['do not tell anyone'] },
+  }
+  const withReconsider = buildUserPrompt({
+    text: 'hello',
+    channel: 'text',
+    senderFact: null,
+    reconsider,
+  })
+  check(withReconsider.includes('This looks like a routine notice.'), "the prior answer's explanation is shown back to the model")
+  check(withReconsider.includes('do not tell anyone'), 'the specific missed phrase is shown')
+  check(
+    renderReconsideration(reconsider).includes('already answered'),
+    'the reconsideration text tells the model this is a second look',
   )
 }
 
