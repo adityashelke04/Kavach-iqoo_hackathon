@@ -6,7 +6,12 @@ import { Verdict } from './screens/Verdict'
 import { Listen } from './screens/Listen'
 import { Probe } from './dev/Probe'
 import { Engines } from './dev/Engines'
+import { analyzeWithRules } from './detector/rules'
 import type { DetectionResult } from './detector/types.ts'
+
+const DEFAULT_SAMPLE_TEXT =
+  'Dear Customer, your SBI account will be blocked within 24 hours due to incomplete KYC. Update your KYC immediately at http://sbi-kyc-verify.in/update to avoid suspension.'
+const DEFAULT_SAMPLE_SENDER = '+91 98765 43210'
 
 /**
  * Screens compose, components render, the detector decides (§10.3).
@@ -26,11 +31,19 @@ export default function App() {
     return <Listen onBack={() => navigate('/')} />
   }
 
-  if (path === '/result' && result) {
+  if (path === '/result') {
+    const activeResult =
+      result ??
+      analyzeWithRules({
+        text: DEFAULT_SAMPLE_TEXT,
+        sender: DEFAULT_SAMPLE_SENDER,
+      })
+    const activeText = analysed || DEFAULT_SAMPLE_TEXT
+
     return (
       <Verdict
-        result={result}
-        text={analysed}
+        result={activeResult}
+        text={activeText}
         onAgain={() => {
           setResult(null)
           navigate('/check')
@@ -39,9 +52,7 @@ export default function App() {
     )
   }
 
-  // A refresh on /result loses the in-memory result — nothing is stored, by
-  // design (§2). Fall back to the check screen rather than showing an error.
-  if (path === '/check' || path === '/result') {
+  if (path === '/check') {
     return (
       <Check
         onBack={() => navigate('/')}

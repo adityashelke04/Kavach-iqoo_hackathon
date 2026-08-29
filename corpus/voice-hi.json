@@ -1,0 +1,151 @@
+[
+  {
+    "id": "voice-hi-scam-001",
+    "lang": "hi",
+    "channel": "voice",
+    "sender": null,
+    "text": "नमस्कार मैं स्टेट बैंक ऑफ इंडिया मुख्य शाखा से बात कर रहा हूँ आपका खाता तत्काल प्रभाव से सस्पेंड कर दिया गया है सत्यापन के लिए अपने फोन पर आया हुआ छह अंकों का ओटीपी मुझे बताइए कॉल मत काटिए",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Devanagari Hindi SBI suspension and OTP extraction"
+  },
+  {
+    "id": "voice-hi-scam-002",
+    "lang": "hi",
+    "channel": "voice",
+    "sender": null,
+    "text": "मैं साइबर क्राइम सेल दिल्ली पुलिस से सब इंस्पेक्टर बोल रहा हूँ आपके आधार कार्ड से मनी लॉन्ड्रिंग का केस दर्ज हुआ है यह एक गोपनीय जांच है किसी से बात मत करिए कमरे का दरवाजा बंद रखिए और वीडियो कॉल पर आइए",
+    "expect": "danger",
+    "expectTactics": ["authority", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Devanagari Hindi digital arrest confidential inquiry"
+  },
+  {
+    "id": "voice-hi-scam-003",
+    "lang": "hi",
+    "channel": "voice",
+    "sender": null,
+    "text": "सर आपका बिजली कनेक्शन आज रात नौ बजे काट दिया जाएगा क्योंकि पिछला बिल अपडेट नहीं हुआ है तुरंत प्ले स्टोर से एनीडेस्क ऐप डाउनलोड करें और नौ अंकों का कोड बताइए",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Devanagari Hindi electricity disconnection and AnyDesk remote access"
+  },
+  {
+    "id": "voice-hi-scam-004",
+    "lang": "hi",
+    "channel": "voice",
+    "sender": null,
+    "text": "कस्टम्स विभाग से बोल रहा हूँ आपके पार्सल में अवैध दवाइयां मिली हैं गिरफ्तारी से बचने के लिए चार हजार नौ सौ रुपये की कस्टम क्लीयरेंस फीस तुरंत यूपीआई से भेजें",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Devanagari Hindi customs contraband advance fee extortion"
+  },
+  {
+    "id": "voice-hi-scam-005",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "main cbi crime branch head office se officer deshmukh bol raha hoon aapka aadhaar card mumbai airport pe pakde gaye drug parcel mein link hua hai abhi ke abhi ek shaant kamre mein jao darwaza band karo kisi family member ko mat batana aur line par bane raho",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish digital arrest isolation script"
+  },
+  {
+    "id": "voice-hi-scam-006",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "namaste sir main bijli vibhag electricity department se bol raha hoon aapka pichhle mahine ka bill update nahi hua hai aaj raat nau baje connection cut ho jayega abhi line par rahiye aur play store se quick support app download karke code bataiye",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish electricity disconnection and QuickSupport remote control"
+  },
+  {
+    "id": "voice-hi-scam-007",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello sir main hdfc bank verification desk se bol raha hoon aapka debit card block ho chuka hai card reactivate karne ke liye aapke mobile par chhey digit ka o t p aaya hai turant padh ke sunao warna account permanent band ho jayega",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish debit card reactivation OTP urgency"
+  },
+  {
+    "id": "voice-hi-scam-008",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir hum city police station se bol rahe hain aapka beta rohit ek serious fight case mein custody mein hai agar f i r nahi karwani to turant pachas hazar rupaye is u p i id pe transfer karo kisi ko mat batana phone mat kaatna",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish fake police custody extortion"
+  },
+  {
+    "id": "voice-hi-scam-009",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir main telecom department trai se baat kar raha hoon aapke number se illegal messages bheje gaye hain supreme court ka warrant nikla hai phone mat kaatiye abhi cyber cell investigator se call connect kar raha hoon",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish TRAI telecom disconnection and warrant"
+  },
+  {
+    "id": "voice-hi-legit-001",
+    "lang": "hi",
+    "channel": "voice",
+    "sender": null,
+    "text": "नमस्ते मैं मैक्स अस्पताल से बोल रही हूँ डॉक्टर वर्मा के साथ आपका अपॉइंटमेंट कल दोपहर दो बजे तय है कृपया समय पर पहुंचें",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Devanagari Hindi hospital appointment reminder"
+  },
+  {
+    "id": "voice-hi-legit-002",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "bhaiya main ola cab driver bol raha hoon main building ke samne khada hoon booking start karne ke liye start otp share kar dijiye",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish cab driver start OTP request"
+  },
+  {
+    "id": "voice-hi-legit-003",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "namaste madam urban company se ac service technician bol raha hoon main location par pahunch gaya hoon verification code bata dijiye taaki main job start kar saku",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish home service technician job start OTP"
+  },
+  {
+    "id": "voice-hi-legit-004",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello sir blue dart courier delivery se bol raha hoon aapke parcel par flat number clear nahi hai kya aap pass wale landmark bata sakte hain",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish courier address clarification"
+  },
+  {
+    "id": "voice-hi-legit-005",
+    "lang": "hinglish",
+    "channel": "voice",
+    "sender": null,
+    "text": "arre beta market mein bahut bheed hai main adhe ghante mein ghar pahunch raha hoon dinner mein kya banana hai bata dena",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Hinglish family dinner coordination"
+  }
+]

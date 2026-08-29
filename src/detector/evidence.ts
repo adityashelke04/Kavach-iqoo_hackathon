@@ -75,7 +75,8 @@ export function resolveEvidence(input: string, phrase: string): Evidence {
   }
 
   // 4. Trim surrounding punctuation and retry the cheap strategies.
-  const stripped = p.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+  // \p{M} preserves Indic dependent vowel signs (matras), virama, and anusvara.
+  const stripped = p.replace(/^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu, '')
   if (stripped !== '' && stripped !== p) {
     const again = resolveEvidence(input, stripped)
     if (again.start !== -1) return again

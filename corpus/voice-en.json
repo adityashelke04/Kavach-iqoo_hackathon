@@ -66,6 +66,50 @@
     "source": "transcript — guided-through-the-app pattern"
   },
   {
+    "id": "voice-scam-007",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "this is automated notification from fedex customer support your parcel booked for taiwan containing five illegal passports and synthetic narcotics has been seized by customs transferring your call immediately to dcp crime branch mumbai stay on the line",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — FedEx narcotics to Mumbai Police transfer scam"
+  },
+  {
+    "id": "voice-scam-008",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "trai automated announcement your sim card will be blocked within two hours due to twenty four complaints of illegal marketing press nine to connect to telecom vigilance officer do not hang up the call",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "isolation"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — TRAI 2-hour mobile disconnection IVR"
+  },
+  {
+    "id": "voice-scam-009",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "sir i am calling from sbi credit card reward cell you have nine thousand eight hundred reward points worth four thousand nine hundred rupees expiring tonight to credit this amount directly into your savings account please read out the six digit o t p you just received",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Credit card reward points expiry OTP scam"
+  },
+  {
+    "id": "voice-scam-010",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "this is traffic police e court cell inspector sharma speaking there is an unpaid speed violation challan and court summon issued against your vehicle number transfer fifteen hundred rupees clearance fee via u p i immediately or a police van will come to seize your car",
+    "expect": "danger",
+    "expectTactics": ["authority", "urgency", "extraction"],
+    "expectSenderKind": "unknown",
+    "source": "transcript — Traffic e-Challan / vehicle seizure extortion call"
+  },
+  {
     "id": "voice-legit-001",
     "lang": "en",
     "channel": "voice",
@@ -104,5 +148,45 @@
     "expect": "safe",
     "expectSenderKind": "unknown",
     "source": "transcript — ordinary family call"
+  },
+  {
+    "id": "voice-legit-005",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello sir i am your uber driver suresh waiting at gate number three in silver swift dzire please tell me the four digit ride pin so we can start the trip",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Legitimate cab driver asking for start ride PIN"
+  },
+  {
+    "id": "voice-legit-006",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "good afternoon sir this is priya from icici bank mg road branch regarding your home loan inquiry on our website do you have two minutes to discuss interest rates or should i schedule a callback later today",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Genuine bank loan representative with callback option"
+  },
+  {
+    "id": "voice-legit-007",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "this is an automated bill reminder from bescom electricity board your monthly power bill of rupees fourteen hundred is due on tenth september please make payment through authorised portal thank you",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Automated BESCOM electricity reminder without immediate disconnection"
+  },
+  {
+    "id": "voice-legit-008",
+    "lang": "en",
+    "channel": "voice",
+    "sender": null,
+    "text": "hello rahul this is sneha from infosys talent acquisition team calling to schedule your technical interview round for tomorrow at four pm please check your registered email for the meeting link",
+    "expect": "safe",
+    "expectSenderKind": "unknown",
+    "source": "transcript — Legitimate HR recruitment interview scheduling call"
   }
 ]

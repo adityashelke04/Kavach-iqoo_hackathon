@@ -2078,6 +2078,7 @@ session needs to know that is not already in this document.
 | P4-P6 | done | Home / Check / Verdict wired to the orchestrator. Screens compose, components render, detector decides - no component imports an engine. `npm run test:smoke` renders every screen against real engine output. |
 | P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
+| UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
 | | | |
 
 ---
@@ -2469,6 +2470,56 @@ Kavach analyses messages, not live call audio, because Android does not permit
 third-party access to the call-audio stream without the default-dialer role.
 This is stated openly in the pitch and placed on the roadmap rather than hidden.
 See §1.
+
+### 2026-08-29 — D11 · The interface speaks plainly; the proof is one tap away
+
+An interim build drifted the interface into a security-operations register:
+`CRITICAL THREAT`, `FORENSIC SUMMARY`, `VERBATIM EVIDENCE READOUT`,
+`EVIDENCE INPUT BUFFER`, `DEFENSIVE ACTION PROTOCOL`, `Local Silicon`,
+`4-Layer Audit`, `DLT Invariant`. It looked technical, and it contradicted
+§10.1's second principle and §10.7's own writing rules.
+
+The register is not a matter of taste here. The reader is a frightened person
+who has just received a threatening message, and a tool that talks like malware
+analysis is a tool they close. Worse, on a §4 DANGER screen it reads as the
+same intimidation the scam is using — §10.1's fourth principle exists precisely
+to prevent that.
+
+**Decided.** Every default screen is in plain second person. The technical
+account — which engine ran, how long it took, that nothing was transmitted, how
+DLT sender headers work — moves into one collapsed `How we checked` disclosure
+at the bottom of the verdict. Nothing is deleted, and the on-device story is
+still fully available to a judge who taps.
+
+Consequences, all shipped with this entry:
+
+- §10.7's copy deck is rewritten in that register and now bans the vocabulary
+  above by name, alongside the existing ban on percentages.
+- Home drops the four-card "defense architecture" grid: it restated the privacy
+  line in other words and pushed both real actions out of thumb reach.
+- Highlighting is capped at the six longest resolved spans. Marking a dozen
+  phrases in a three-line SMS paints the whole message orange and stops meaning
+  anything.
+- **A SAFE verdict marks nothing.** A genuine bank alert trips the `authority`
+  tactic without crossing the threshold, so `-SBI` was being highlighted under
+  the caption "the parts that worried us" directly below the headline
+  "Looks legitimate".
+- `describeExplanation` takes the verdict. Its clauses are written to justify a
+  warning; on a safe verdict "This claims to come from an official body." is a
+  strange reason to give for "Looks legitimate".
+- `describeNextMove` returns the neutral line whenever nothing was flagged. Its
+  phrase rules used to run first, so a real bank SMS carrying the standard
+  "do not share OTP/CVV/PIN" warning was told *"They want the OTP from your
+  bank's SMS."*
+- The Check screen's 550 ms padded delay and its rotating "Verifying TRAI DLT
+  header cryptographic format…" captions are gone. The rules engine answers in
+  single-digit milliseconds; inventing work it is not doing violates the §9
+  integrity line and is a weaker story than the real number.
+
+Heat (#FA5D19), Graphite (#262626) and Paper (#F9F9F9) are unchanged and remain
+the palette. What changed is the ration: Heat marks the action and nothing else
+on Home and Check, so that a danger verdict flooding the field edge to edge
+reads as escalation by area rather than one more orange accent among many.
 
 ---
 

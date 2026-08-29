@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test:corpus": "node scripts/test-corpus.mjs",
-    "test:smoke": "node scripts/smoke.mjs"
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:mobile": "node scripts/mobile-check.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

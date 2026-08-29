@@ -6,6 +6,7 @@ import type {
   SenderSignal,
   Tactic,
   TacticName,
+  Verdict,
 } from './types.ts'
 import { TACTIC_NAMES } from './types.ts'
 import { CONCLUSIVE, NEGATIVES, TERMS, VOICE_TERMS } from './terms.ts'
@@ -104,12 +105,23 @@ function collect(input: string, terms: readonly { re: RegExp; w: number }[]): Ma
 /**
  * Is this match inside a negation? "Do not share the OTP" contains the exact
  * substring "share the OTP" while meaning precisely the opposite — a real bank
- * says it, a scammer never does. Without this guard the conclusive-signal
- * floor would fire on every legitimate bank SMS and fail the §12 gate.
+ * says it, a scammer never does. Defends against both English prefix ("never share OTP")
+ * and Hindi postfix ("OTP share mat karna", "kisi ko na batayein").
  */
-function isNegated(text: string, matchStart: number): boolean {
-  const lookback = text.slice(Math.max(0, matchStart - 28), matchStart)
-  return /\b(do ?n[o']?t|never|no need to|will not|won'?t|kabhi)\b[^.!?]*$/i.test(lookback)
+function isNegated(text: string, matchStart: number, matchEnd: number): boolean {
+  // 1. Prefix lookback (extended to 60 characters)
+  const lookback = text.slice(Math.max(0, matchStart - 60), matchStart)
+  const prefixNegated = /\b(do ?n[o']?t|never|no need to|will not|won'?t|kabhi (bhi )?(mat|nahi|na)?|mat|na|nahi|kripya.*(na|mat)|मत|नहीं|ना|कभी नहीं)\b[^.!?]*$/i.test(
+    lookback,
+  )
+  if (prefixNegated) return true
+
+  // 2. Postfix lookahead (checks up to 45 characters following the term)
+  const lookahead = text.slice(matchEnd, Math.min(text.length, matchEnd + 45))
+  const postfixNegated = /^(?:[\s\w,\u0900-\u097F]+)?\b(mat|na|nahi|kabhi nahi|mat karna|mat batana|mat dena|na karein|na de|do not share|never share|मत दें|मत बताएं|न करें|मत करें|साझा न करें)\b/i.test(
+    lookahead,
+  )
+  return postfixNegated
 }
 
 /**
@@ -131,7 +143,7 @@ function conclusiveFloor(text: string): { floor: number; why: string | null } {
     // The first pattern is the one carrying the meaning, so it is the one we
     // negation-check.
     const hits = [...text.matchAll(new RegExp(first.source, first.flags))].filter(
-      (m) => m.index !== undefined && !isNegated(text, m.index),
+      (m) => m.index !== undefined && !isNegated(text, m.index, m.index + m[0].length),
     )
     if (hits.length === 0) continue
 
@@ -175,29 +187,36 @@ const TACTIC_NOTE: Record<TacticName, string> = {
 
 /** Name the specific ask and the specific consequence (§5 `nextMove`). */
 function describeNextMove(text: string, hasFindings: boolean): string {
+  // With nothing flagged, none of the phrase rules below may speak. A genuine
+  // bank SMS says "do not share OTP/CVV/PIN" in almost every message, and
+  // matching that would tell the reader a legitimate alert is after their code.
+  if (!hasFindings) {
+    return "This message isn't asking you for anything sensitive."
+  }
+
   const has = (re: RegExp) => re.test(text)
 
-  if (has(/any ?desk|team ?viewer|quick ?support|rust ?desk|screen ?shar/i)) {
+  if (has(/any ?desk|team ?viewer|quick ?support|rust ?desk|screen ?shar|एनीडेस्क|टीमव्यूअर|क्विकसपोर्ट|स्क्रीन\s*शेयर/i)) {
     return 'They want you to install a screen-sharing app so they can operate your banking app while you watch.'
   }
   // Acronyms match their spoken forms too ("o t p"), see §5.6.
-  if (has(/\bo[\s.]?t[\s.]?p\b|one[- ]time password|\d[- ]digit (code|number)/i)) {
+  if (has(/\bo[\s.]?t[\s.]?p\b|one[- ]time password|\d[- ]digit (code|number)|ओटीपी|ओ\s*टी\s*पी|कोड|पासवर्ड/i)) {
     return "They want the OTP from your bank's SMS. That code is the only thing standing between them and your account."
   }
   if (
     has(
-      /\bu[\s.]?p[\s.]?i\b|qr code|scan this|(send|transfer|pay) (rs\.?|₹|money|amount)|deposit|fee|rupees/i,
+      /\bu[\s.]?p[\s.]?i\b|qr code|scan this|(send|transfer|pay) (rs\.?|₹|money|amount)|deposit|fee|rupees|यूपीआई|क्यूआर|पैसे|रुपये|डिपॉजिट|शुल्क/i,
     )
   ) {
     return 'They want you to send money now and trust a refund later. There will be no refund.'
   }
-  if (has(/\bc[\s.]?v[\s.]?v\b|card number|\bpin\b|password|login/i)) {
+  if (has(/\bc[\s.]?v[\s.]?v\b|card number|\bpin\b|password|login|सीवीवी|पिन|कार्ड नंबर/i)) {
     return 'They want your card or login details, which is everything needed to empty the account.'
   }
-  if (has(/bit\.ly|tinyurl|click here|https?:\/\/|verify your|update your/i)) {
+  if (has(/bit\.ly|tinyurl|click here|https?:\/\/|verify your|update your|केवाईसी|लिंक/i)) {
     return 'They want you on a page that looks like your bank, so you type your login in yourself.'
   }
-  if (has(/\b[6-9]\d{9}\b|call (this|back|immediately)|whats ?app/i)) {
+  if (has(/\b[6-9]\d{9}\b|call (this|back|immediately)|whats ?app|व्हाट्सएप/i)) {
     return 'They want you to call back on their number, where a second person will take over and ask for the codes.'
   }
   return hasFindings
@@ -205,8 +224,26 @@ function describeNextMove(text: string, hasFindings: boolean): string {
     : "This message isn't asking you for anything sensitive."
 }
 
-function describeExplanation(tactics: Tactic[], sender: SenderSignal): string {
+function describeExplanation(
+  tactics: Tactic[],
+  sender: SenderSignal,
+  verdict: Verdict,
+): string {
   const names = new Set(tactics.map((t) => t.name))
+
+  // The clauses below are written to justify a warning. On a safe verdict they
+  // read as an accusation the headline just contradicted: a genuine bank alert
+  // trips the authority tactic without ever crossing the threshold, and
+  // "This claims to come from an official body." is a strange reason to give
+  // for "Looks legitimate".
+  if (verdict === 'safe') {
+    if (sender.kind === 'dlt_header') {
+      return 'Nothing here pressures you or asks for anything sensitive, and it came from a registered business sender.'
+    }
+    return names.size > 0
+      ? 'Some of the wording sounds official, but nothing here pressures you or asks for anything sensitive.'
+      : 'Nothing in this message tries to pressure you or ask for anything sensitive.'
+  }
 
   if (tactics.length === 0) {
     return sender.risk === 'high'
@@ -308,7 +345,12 @@ export function analyzeWithRules(
     senderAdj = SENDER_ADJ.registered
   }
 
-  const scored = Math.max(0, weighted + synergy + senderAdj - globalPenalty)
+  // In voice mode (live phone calls), there is no sender header to supply
+  // highWithAuthority (+0.25). Multi-tactic live voice scams receive a calibration
+  // bonus so spoken extortion calls reliably trigger the danger takeover.
+  const voiceBonus = channel === 'voice' && tactics.length >= 2 ? 0.08 : 0
+
+  const scored = Math.max(0, weighted + synergy + senderAdj + voiceBonus - globalPenalty)
 
   // A conclusive signal sets a floor rather than adding weight: its strength
   // does not depend on what else is in the message. Only applied when the
@@ -324,7 +366,7 @@ export function analyzeWithRules(
     confidence,
     tactics,
     senderSignal: sender,
-    explanation: describeExplanation(tactics, sender),
+    explanation: describeExplanation(tactics, sender, verdict),
     nextMove: describeNextMove(text, tactics.length > 0),
     engineUsed: 'rules',
     latencyMs: Date.now() - startedAt,

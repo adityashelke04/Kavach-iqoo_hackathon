@@ -2,12 +2,12 @@
 @import './ui/tokens.css';
 @import './ui/app.css';
 
-/* Expose the tokens to Tailwind utilities (bg-surface, text-muted, …).
- * Tailwind v4 reads @theme, so tokens stay the single source of truth. */
+/* Expose tokens to Tailwind utilities. Tokens stay the single source of truth. */
 @theme {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
@@ -15,6 +15,9 @@
   --color-danger: var(--danger-accent);
   --color-caution: var(--caution-accent);
   --color-safe: var(--safe-accent);
+  --color-heat: var(--heat);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
 }
 
 html {
@@ -22,24 +25,29 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* Safe-area insets are applied by .screen / .appbar / .screen__footer, never
+ * here as well — padding the body too double-pads a notched device. */
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--fs-md);
   line-height: var(--lh-body);
-  /* Respect the notch/gesture bar on the iQOO. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* §10.8: honour reduced motion globally, not per-component. */
+/* Nothing may scroll the page sideways on a phone. */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* §10.8: honour reduced motion globally, not per component. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

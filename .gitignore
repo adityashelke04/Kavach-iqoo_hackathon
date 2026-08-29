@@ -12,3 +12,14 @@ npm-debug.log*
 dev-dist
 .vite
 tsconfig.tsbuildinfo
+
+# headless browser profiles used by scripts/mobile-check.mjs
+.chrome-cdp-profile/
+
+# agent tooling copied in by other sessions, not project source
+.agents/
+.claude/
+skills-lock.json
+
+# regenerable with: npm run test:mobile
+screenshots/
