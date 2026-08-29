@@ -141,6 +141,24 @@ export async function analyze(
     }
   }
 
+  // Bug instrumentation + guard: an engine's own result must report the
+  // engine that was actually asked to run (a user picking "Cloud" and being
+  // shown "This phone (WebGPU)" was reported live). Every real engine hardcodes
+  // its own engineId — cloud.ts always passes 'cloud', local.ts always 'local'
+  // — so this is structurally impossible from the engines as written. If it
+  // ever fires anyway, treat it exactly like an engine failure (§6 non-
+  // negotiable 4): the mislabeled answer is discarded, not shown, and the
+  // rules-only result stands, same as any other silent fallback (D2).
+  if (llm && llm.engineUsed !== preference) {
+    console.error(
+      `[kavach] engine mismatch: asked for "${preference}" but got a result labelled ` +
+        `"${llm.engineUsed}" — discarding it rather than showing a false device claim. ` +
+        `Check for a stale service worker / cached bundle first, then the engine's own ` +
+        `engineId wiring.`,
+    )
+    llm = null
+  }
+
   let result = rules
   if (llm) {
     try {

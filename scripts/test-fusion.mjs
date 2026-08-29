@@ -47,11 +47,11 @@ const REGISTERED = classifySender('VM-SBIINB')
 const llmJson = (o) => JSON.stringify(o)
 
 /** Build an LLM-side result from a payload object. */
-const asLlm = (payload, input, sender = NO_SENDER) =>
+const asLlm = (payload, input, sender = NO_SENDER, engineId = 'cloud') =>
   resultFromLlm(llmJson(payload), {
     input,
     senderSignal: sender,
-    engineId: 'cloud',
+    engineId,
     latencyMs: 120,
   })
 
@@ -542,6 +542,8 @@ function fakeEngine(id, answers) {
       nextMove: 'They want the OTP.',
     },
     scam,
+    NO_SENDER,
+    'local',
   )
   const fake = fakeEngine('local', [agree])
   const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
@@ -561,6 +563,8 @@ function fakeEngine(id, answers) {
       nextMove: 'They want the OTP.',
     },
     scam,
+    NO_SENDER,
+    'local',
   )
   const corrected = asLlm(
     {
@@ -573,6 +577,8 @@ function fakeEngine(id, answers) {
       nextMove: 'They want the OTP.',
     },
     scam,
+    NO_SENDER,
+    'local',
   )
   const fake = fakeEngine('local', [missed, corrected])
   const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
@@ -593,6 +599,8 @@ function fakeEngine(id, answers) {
       nextMove: 'They want the OTP.',
     },
     scam,
+    NO_SENDER,
+    'local',
   )
   const stillMissed = asLlm(
     {
@@ -602,6 +610,8 @@ function fakeEngine(id, answers) {
       nextMove: 'They want the OTP.',
     },
     scam,
+    NO_SENDER,
+    'local',
   )
   const fake = fakeEngine('local', [missed, stillMissed])
   const result = await analyze(scam, 'local', undefined, undefined, { local: fake.detector })
@@ -621,6 +631,43 @@ function fakeEngine(id, answers) {
   check(fake.calls.length === 1, 'a failed engine is not retried as if it were a reconsideration')
   check(result.engineUsed === 'rules', 'a total engine failure falls back to the rules-only result')
   check(result.verdict === 'danger', 'the rules-only fallback still reaches the correct verdict on its own')
+}
+
+{
+  // Bug instrumentation regression: a user picking "Cloud" and being shown
+  // "This phone (WebGPU)" was reported live. Every real engine wires its own
+  // fixed engineId (cloud.ts always passes 'cloud', local.ts always 'local'),
+  // so this class of bug is structurally impossible from the engines as
+  // written — but this test pins that invariant directly rather than trusting
+  // the reasoning: even a misbehaving engine that answers under the wrong
+  // label must be caught and logged, never silently shown as the truth.
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const mislabeled = asLlm(
+    { confidence: 0.8, tactics: [], explanation: 'x', nextMove: 'x' },
+    scam,
+    NO_SENDER,
+    'local', // wrong on purpose: this engine is registered under 'cloud' below
+  )
+  const fake = fakeEngine('cloud', [mislabeled])
+
+  const seen = []
+  const originalError = console.error
+  console.error = (...args) => seen.push(args.join(' '))
+  let result
+  try {
+    result = await analyze(scam, 'cloud', undefined, undefined, { cloud: fake.detector })
+  } finally {
+    console.error = originalError
+  }
+
+  check(
+    seen.some((line) => line.includes('engine mismatch') && line.includes('"cloud"') && line.includes('"local"')),
+    'a result labelled with the wrong engine is caught and logged, not shown silently',
+  )
+  check(
+    result.engineUsed === 'rules',
+    'the mislabeled result is discarded — the rules-only fallback is shown instead of a false device claim',
+  )
 }
 
 /* ------------------------------------------------------------------ */
