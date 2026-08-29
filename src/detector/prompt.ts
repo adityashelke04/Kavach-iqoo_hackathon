@@ -70,7 +70,11 @@ Rules you must follow:
 5. "confidence" must be a decimal between 0 and 1, such as 0.15 or 0.9. Never
    a percentage, never a rating out of 5 or 10. A value outside 0-1 makes the
    whole response unusable and it is discarded.
-6. Never put a number, a percentage or a score in any string you return.
+6. Never state a confidence score, a percentage or a rating in "explanation",
+   "nextMove" or a tactic's "note" — that judgment belongs only in the
+   "confidence" field above. A concrete fact already in the message, such as
+   an amount the scam is asking for, may still appear in plain prose when it
+   helps the reader understand what is being asked of them.
 7. Ordinary legitimate messages exist and are common: transaction alerts,
    delivery updates, OTP notifications from a real bank, appointment reminders,
    promotions. For these, return an empty "tactics" array and a low confidence.
