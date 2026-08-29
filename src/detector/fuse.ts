@@ -1,4 +1,4 @@
-import type { DetectionResult, Evidence, Tactic } from './types.ts'
+import type { DetectionResult, Evidence, Tactic, TacticName } from './types.ts'
 import { decideVerdict } from './verdict.ts'
 import { validateResult } from './validate.ts'
 
@@ -24,25 +24,47 @@ import { validateResult } from './validate.ts'
  */
 
 /**
- * How much a confident LLM can move a result on its own.
+ * How much a confident rules signal can add on its own — SPEC.md §16 D15.
  *
- * Fusion is a weighted noisy-OR: `fused = r + w·l·(1 − r)`. The weight is what
- * keeps two mildly-suspicious readings from compounding into a warning:
- *
- *   rules 0.20, llm 0.20  ->  0.34   safe      (two weak signals stay weak)
- *   rules 0.50, llm 0.50  ->  0.71   danger    (independent agreement counts)
- *   rules 0.00, llm 0.90  ->  0.77   danger    (a novel scam rules cannot see)
- *   rules 0.80, llm 0.00  ->  0.80   danger    (rules is never talked down)
- *
- * That last row is the important one. The LLM can only ever add. A model
- * politely deciding a scam looks fine must not be able to lower a verdict the
- * deterministic engine already reached, because that is precisely the argument
- * a well-written scam makes.
+ * Fusion is a weighted noisy-OR, now centred on the LLM: `fused = l + w·r·(1 − l)`.
+ * The LLM is the primary reading; rules can still raise it, but the numeric
+ * floor is the LLM's own confidence, not the rules engine's — the flip of
+ * D12's guarantee. See SPEC.md §16 D15 point 4 for the accepted trade-off
+ * this makes, and why the real protection against a wrong LLM moved to
+ * `findAuditGap` and the §4 override rules rather than this formula.
  */
 export const LLM_WEIGHT = 0.85
 
 export function fuseConfidence(rules: number, llm: number): number {
-  return Math.min(1, rules + LLM_WEIGHT * llm * (1 - rules))
+  return Math.min(1, llm + LLM_WEIGHT * rules * (1 - llm))
+}
+
+/**
+ * The rules-found tactic, with real evidence, that the LLM's raw answer is
+ * missing — or `null` when there is nothing to reconsider (D15).
+ *
+ * When more than one is missing, the most diagnostic tactic is returned
+ * first, matching §8.3's weighting guidance (isolation is the strongest
+ * signal with almost no legitimate counterpart; urgency the weakest on its
+ * own) — the single reconsideration call this drives should spend itself on
+ * the finding most likely to actually change the verdict.
+ */
+const AUDIT_PRIORITY: readonly TacticName[] = ['isolation', 'extraction', 'authority', 'urgency']
+
+export function findAuditGap(
+  rulesTactics: readonly Tactic[],
+  llmTactics: readonly Tactic[],
+): Tactic | null {
+  const llmNames = new Set(llmTactics.map((t) => t.name))
+  const byName = new Map(rulesTactics.map((t) => [t.name, t] as const))
+
+  for (const name of AUDIT_PRIORITY) {
+    const candidate = byName.get(name)
+    if (candidate && candidate.evidence.length > 0 && !llmNames.has(name)) {
+      return candidate
+    }
+  }
+  return null
 }
 
 /** Two spans are the same finding if they cover the same text. */

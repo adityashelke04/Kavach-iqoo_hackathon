@@ -18,7 +18,9 @@ const mod = (rel) => pathToFileURL(join(root, rel)).href
 const { analyzeWithRules, toBriefing } = await import(mod('src/detector/rules.ts'))
 const { classifySender } = await import(mod('src/detector/sender.ts'))
 const { validateResult } = await import(mod('src/detector/validate.ts'))
-const { fuse, fuseConfidence, mergeTactics, LLM_WEIGHT } = await import(mod('src/detector/fuse.ts'))
+const { fuse, fuseConfidence, mergeTactics, findAuditGap, LLM_WEIGHT } = await import(
+  mod('src/detector/fuse.ts')
+)
 const { resultFromLlm, extractJson, LlmContractError } = await import(mod('src/detector/llm.ts'))
 const { buildUserPrompt, renderBriefing, renderReconsideration } = await import(
   mod('src/detector/prompt.ts')
@@ -55,37 +57,40 @@ const asLlm = (payload, input, sender = NO_SENDER) =>
 console.log(`\n${C.bold}Kavach fusion + LLM contract${C.reset}`)
 
 /* ------------------------------------------------------------------ */
-group('Confidence fusion (weighted noisy-OR)')
+group('Confidence fusion (weighted noisy-OR, re-centred on the LLM — D15)')
 
 const table = [
   [0.2, 0.2, 'safe'],
   [0.5, 0.5, 'danger'],
-  [0.0, 0.9, 'danger'],
-  [0.8, 0.0, 'danger'],
+  [0.9, 0.0, 'danger'], // a confident LLM alone still reaches danger
+  [0.0, 0.8, 'danger'], // rules corroborating a confident LLM still reaches danger
   [0.0, 0.0, 'safe'],
 ]
-for (const [r, l] of table) {
+for (const [l, r] of table) {
   const f = fuseConfidence(r, l)
-  const expected = Math.min(1, r + LLM_WEIGHT * l * (1 - r))
+  const expected = Math.min(1, l + LLM_WEIGHT * r * (1 - l))
   check(
     Math.abs(f - expected) < 1e-9,
-    `fuse(${r}, ${l}) = ${f.toFixed(3)}`,
+    `fuse(rules=${r}, llm=${l}) = ${f.toFixed(3)}`,
     `expected ${expected.toFixed(3)}`,
   )
 }
 
 check(fuseConfidence(0.2, 0.2) < 0.35, 'two weak signals stay below the caution threshold')
 check(fuseConfidence(0.5, 0.5) >= 0.7, 'two moderate signals agreeing reach danger')
-check(fuseConfidence(0, 0.9) >= 0.7, 'a confident LLM alone can reach danger on a novel scam')
+check(fuseConfidence(0, 0.9) >= 0.7, 'a confident LLM alone can reach danger on a novel scam rules missed')
 
-// The invariant the whole design rests on.
+// The invariant flips with D15: the LLM is now the base the rules engine can
+// only add to, never subtract from. See SPEC.md §16 D15 point 4 for why the
+// old "rules is the floor" guarantee does not survive re-centring, and why
+// that is an intentional trade rather than a regression.
 let monotonic = true
 for (let r = 0; r <= 1.0001; r += 0.05) {
   for (let l = 0; l <= 1.0001; l += 0.05) {
-    if (fuseConfidence(r, l) < r - 1e-9) monotonic = false
+    if (fuseConfidence(r, l) < l - 1e-9) monotonic = false
   }
 }
-check(monotonic, 'the LLM can never lower the rules confidence (441 combinations)')
+check(monotonic, 'rules can never lower the LLM confidence (441 combinations)')
 
 /* ------------------------------------------------------------------ */
 group('extractJson')
@@ -341,6 +346,45 @@ group('toBriefing')
 }
 
 /* ------------------------------------------------------------------ */
+group('findAuditGap')
+
+{
+  const rulesT = [
+    { name: 'isolation', label: 'x', note: 'n', evidence: [{ phrase: 'do not tell anyone', start: 0, end: 18 }] },
+  ]
+  const llmT = []
+  const gap = findAuditGap(rulesT, llmT)
+  check(gap !== null && gap.name === 'isolation', 'a rules tactic missing from the LLM answer is returned')
+}
+
+{
+  const rulesT = [
+    { name: 'urgency', label: 'x', note: 'n', evidence: [{ phrase: 'blocked within 24 hours', start: 0, end: 10 }] },
+  ]
+  const llmT = [
+    { name: 'urgency', label: 'x', note: 'n', evidence: [{ phrase: 'blocked within 24 hours', start: 0, end: 10 }] },
+  ]
+  check(findAuditGap(rulesT, llmT) === null, 'no gap when both engines already agree')
+}
+
+{
+  const rulesT = [
+    { name: 'authority', label: 'x', note: 'n', evidence: [] }, // no evidence — never a valid gap
+  ]
+  check(findAuditGap(rulesT, []) === null, 'a rules tactic with no evidence is never an audit gap')
+}
+
+{
+  // Priority: isolation over extraction when both are missing.
+  const rulesT = [
+    { name: 'extraction', label: 'x', note: 'n', evidence: [{ phrase: 'share the OTP', start: 0, end: 10 }] },
+    { name: 'isolation', label: 'x', note: 'n', evidence: [{ phrase: 'do not tell anyone', start: 20, end: 38 }] },
+  ]
+  const gap = findAuditGap(rulesT, [])
+  check(gap.name === 'isolation', 'isolation is chosen over extraction when both are missing, per §8.3 priority')
+}
+
+/* ------------------------------------------------------------------ */
 group('fuse — end to end')
 
 {
@@ -372,7 +416,10 @@ group('fuse — end to end')
 }
 
 {
-  // The critical direction: a persuasive model must not talk down a scam.
+  // D15: the numeric floor moved from rules to the LLM. What still holds is
+  // the tactic union + §4 overrides — a concrete, evidenced tactic rules
+  // found cannot be erased by a dismissive LLM, even though the raw fused
+  // *number* can now come in under what rules alone would have scored.
   const scam = {
     text: 'Dear Customer, your SBI account will be blocked within 24 hours due to incomplete KYC. Update your KYC immediately at http://sbi-kyc-verify.in/update to avoid suspension.',
     channel: 'text',
@@ -390,10 +437,15 @@ group('fuse — end to end')
   )
   const fused = fuse({ rules, llm })
   check(rules.verdict === 'danger', 'rules alone calls the KYC scam danger')
-  check(fused.verdict === 'danger', 'a confidently wrong LLM cannot downgrade it')
   check(
-    fused.explanation === rules.explanation,
-    'the rules explanation is kept when the LLM contributed nothing',
+    fused.tactics.some((t) => t.name === 'urgency' || t.name === 'extraction'),
+    "rules' tactics survive into the fused result even though the LLM reported none",
+    JSON.stringify(fused.tactics.map((t) => t.name)),
+  )
+  check(
+    fused.verdict !== 'safe',
+    'the merged tactic evidence keeps a dismissed scam off "safe" at minimum',
+    `got ${fused.verdict}`,
   )
 }
 
