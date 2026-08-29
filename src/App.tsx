@@ -7,7 +7,7 @@ import { Listen } from './screens/Listen'
 import { Probe } from './dev/Probe'
 import { Engines } from './dev/Engines'
 import { Llm } from './dev/Llm'
-import { analyzeProgressive, type EnginePreference } from './detector/orchestrator'
+import { analyze, type AnalysisPhase, type EnginePreference } from './detector/orchestrator'
 import { analyzeWithRules } from './detector/rules'
 import { localSupported, preloadModel } from './detector/local'
 import type { DetectionInput, DetectionResult } from './detector/types.ts'
@@ -19,10 +19,11 @@ const DEFAULT_SAMPLE_SENDER = '+91 98765 43210'
 /**
  * Screens compose, components render, the detector decides (§10.3).
  *
- * The analysis lives here rather than in `Check` because it outlives that
- * screen: the deterministic verdict navigates to the result immediately, and
- * the on-device model upgrades it tens of seconds later (D13). Running it
- * inside `Check` would mean setting state on a component that has unmounted.
+ * The analysis still lives here rather than in `Check` so that navigating
+ * away and back (or a cancelled and restarted check) is unambiguous via
+ * `runId` — but under D15 it no longer needs to outlive the screen the way
+ * D13's progressive upgrade did: `analyze()` resolves once, and `App`
+ * navigates to `/result` exactly once, with the final result.
  *
  * Routing is path-based so Android's back button leaves a screen rather than
  * closing the installed PWA.
@@ -31,7 +32,7 @@ export default function App() {
   const [path, navigate] = useRoute()
   const [result, setResult] = useState<DetectionResult | null>(null)
   const [analysed, setAnalysed] = useState('')
-  const [pending, setPending] = useState(false)
+  const [phase, setPhase] = useState<AnalysisPhase | null>(null)
   const [busy, setBusy] = useState(false)
   const [enginePreference, setEnginePreference] = useState<EnginePreference>('local')
   const runId = useRef(0)
@@ -48,31 +49,22 @@ export default function App() {
     async (input: DetectionInput) => {
       const id = ++runId.current
       setBusy(true)
+      setPhase(null)
       setAnalysed(input.text)
 
-      let navigated = false
       try {
-        await analyzeProgressive(
-          input,
-          (stage) => {
-            // A newer check started; drop this one's updates.
-            if (id !== runId.current) return
-
-            setResult(stage.result)
-            setPending(stage.pending)
-
-            if (!navigated) {
-              navigated = true
-              setBusy(false)
-              navigate('/result')
-            }
-          },
-          enginePreference,
-        )
+        const detected = await analyze(input, enginePreference, undefined, (p) => {
+          if (id === runId.current) setPhase(p)
+        })
+        if (id !== runId.current) return
+        setResult(detected)
+        setBusy(false)
+        setPhase(null)
+        navigate('/result')
       } finally {
         if (id === runId.current) {
           setBusy(false)
-          setPending(false)
+          setPhase(null)
         }
       }
     },
@@ -83,7 +75,6 @@ export default function App() {
     runId.current++
     setAnalysed(DEFAULT_SAMPLE_TEXT)
     setResult(analyzeWithRules({ text: DEFAULT_SAMPLE_TEXT, sender: DEFAULT_SAMPLE_SENDER }))
-    setPending(false)
     navigate('/result')
   }, [navigate])
 
@@ -104,15 +95,12 @@ export default function App() {
       <Verdict
         result={activeResult}
         text={analysed || DEFAULT_SAMPLE_TEXT}
-        pending={pending}
         onBack={() => {
           runId.current++
-          setPending(false)
           navigate('/')
         }}
         onAgain={() => {
           runId.current++
-          setPending(false)
           navigate('/check')
         }}
       />
@@ -120,7 +108,7 @@ export default function App() {
   }
 
   if (path === '/check') {
-    return <Check onBack={() => navigate('/')} onSubmit={runCheck} busy={busy} />
+    return <Check onBack={() => navigate('/')} onSubmit={runCheck} busy={busy} phase={phase} />
   }
 
   return (
