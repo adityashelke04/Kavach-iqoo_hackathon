@@ -334,8 +334,18 @@ export function DeviceTelemetryPanel({ defaultOpen = false }: { defaultOpen?: bo
 
         <div className="meta-row">
           <span className="meta-row__k">WebGPU Status</span>
-          <span className="meta-row__v">
-            {telemetry?.webgpuSupported ? '🟢 Active on device' : '🟡 Offline rules / Cloud fallback'}
+          <span className="meta-row__v" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 'var(--r-full)',
+                background: telemetry?.webgpuSupported ? 'var(--safe-accent)' : 'var(--caution-accent)',
+                flex: 'none',
+              }}
+            />
+            {telemetry?.webgpuSupported ? 'Active on device' : 'Offline rules / Cloud fallback'}
           </span>
         </div>
 
@@ -356,7 +366,7 @@ export function DeviceTelemetryPanel({ defaultOpen = false }: { defaultOpen?: bo
             href="/dev/llm"
             style={{
               fontSize: 'var(--fs-xs)',
-              color: 'var(--heat)',
+              color: 'var(--brand)',
               textDecoration: 'underline',
               display: 'inline-flex',
               alignItems: 'center',

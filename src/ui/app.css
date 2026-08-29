@@ -156,7 +156,7 @@
 
 /* tabindex="-1" exists only so the verdict can be focused for screen readers
  * on arrival; Chrome treats that programmatic focus as :focus-visible, which
- * drew a heat ring around the whole banner. Keyboard focus still rings. */
+ * drew a focus ring around the whole banner. Keyboard focus still rings. */
 :where(a, button, input, textarea, select, summary, [tabindex]):not(
     [tabindex='-1']
   ):focus-visible {
@@ -203,14 +203,14 @@
   transform: none;
 }
 
-/* Ink on Heat is 6.3:1. White on Heat is 3.1:1 and fails AA. */
+/* Ink on Brand is 5.2:1. White on Brand fails AA the same way it fails on Heat. */
 .btn--primary {
-  background: var(--heat);
-  color: var(--on-heat);
+  background: var(--brand);
+  color: var(--on-brand);
 }
 
 .btn--primary:not(:disabled):active {
-  background: var(--heat-active);
+  background: var(--brand-active);
 }
 
 .btn--secondary {
@@ -262,9 +262,9 @@
 }
 
 .chip--active {
-  background: var(--heat-tint);
-  border-color: var(--heat-border);
-  color: var(--heat-on-tint);
+  background: var(--brand-tint);
+  border-color: var(--brand-border);
+  color: var(--brand-on-tint);
   font-weight: var(--fw-bold);
 }
 
@@ -384,7 +384,7 @@
 
 @media (hover: hover) {
   .choice:hover {
-    border-color: var(--heat-border);
+    border-color: var(--brand-border);
     box-shadow: var(--shadow-2);
   }
 }
@@ -396,6 +396,10 @@
   box-shadow: var(--shadow-1);
 }
 
+/* Both choices share one brand-tinted treatment on purpose: neither is a
+ * verdict, so neither borrows a verdict colour (danger/caution/safe) the way
+ * an earlier pass did — that confused "what Kavach can do" with "what Kavach
+ * found". Brand blue means "this is an action", full stop. */
 .choice__icon {
   display: inline-flex;
   align-items: center;
@@ -404,13 +408,8 @@
   width: 52px;
   height: 52px;
   border-radius: var(--r-md);
-  background: var(--heat-tint);
-  color: var(--heat);
-}
-
-.choice__icon--safe {
-  background: var(--safe-tint);
-  color: var(--safe-accent);
+  background: var(--brand-tint);
+  color: var(--brand);
 }
 
 .choice__body {
@@ -626,7 +625,7 @@
 }
 
 .engine-switch__option--active .engine-switch__icon {
-  color: var(--heat);
+  color: var(--brand);
 }
 
 .engine-switch__icon {
@@ -677,7 +676,7 @@
 }
 
 .composer:focus-within {
-  border-color: var(--heat-border);
+  border-color: var(--brand-border);
 }
 
 .composer__area {
@@ -868,7 +867,7 @@
   height: 56px;
   border-radius: var(--r-full);
   border: 3px solid var(--surface-3);
-  border-top-color: var(--heat);
+  border-top-color: var(--brand);
   animation: spin 800ms linear infinite;
 }
 
@@ -1159,7 +1158,7 @@
 }
 
 .mic__core:focus-visible {
-  outline: 2px solid var(--heat);
+  outline: 2px solid var(--brand);
   outline-offset: 4px;
 }
 
@@ -1169,9 +1168,9 @@
 }
 
 .mic--listening .mic__core {
-  border-color: var(--heat-border);
-  background: var(--heat-tint);
-  color: var(--heat);
+  border-color: var(--brand-border);
+  background: var(--brand-tint);
+  color: var(--brand);
 }
 
 .mic--danger .mic__core {
@@ -1183,7 +1182,7 @@
 .mic__ring {
   position: absolute;
   inset: -1px;
-  border: 2px solid var(--heat);
+  border: 2px solid var(--brand);
   border-radius: var(--r-full);
   opacity: 0;
   pointer-events: none;
@@ -1240,7 +1239,7 @@
 }
 
 .level--active .level__bar {
-  background: var(--heat);
+  background: var(--brand);
 }
 
 .mic--danger ~ .level .level__bar,
@@ -1340,7 +1339,7 @@
   height: 1em;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: var(--heat);
+  background: var(--brand);
   animation: blink 900ms steps(2) infinite;
 }
 

@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { motion } from 'motion/react'
 import type { EnginePreference } from '../detector/orchestrator.ts'
 import { copy } from '../ui/copy.ts'
 import {
@@ -9,6 +10,16 @@ import {
   IconLock,
 } from '../ui/icons.tsx'
 import { DeviceTelemetryPanel, EngineSwitch } from '../ui/components/index.tsx'
+import { useReducedMotion } from '../ui/motion.ts'
+
+/**
+ * The two choices settle in a beat apart on first paint rather than appearing
+ * as two static boxes already sitting there. Deliberately NOT synced to the
+ * end of the shield-draw/tagline sequence (~900ms+): the two primary actions
+ * on the whole app must never sit invisible for the better part of a second
+ * waiting their turn — they get their own quick, independent settle instead.
+ */
+const CHOICE_ENTER_DELAY_MS: [number, number] = [70, 150]
 
 /**
  * Home — SPEC.md §10.6, §9b, §16 D2.
@@ -31,6 +42,7 @@ export function Home({
 }) {
   const tapCount = useRef(0)
   const lastTap = useRef(0)
+  const reducedMotion = useReducedMotion()
 
   // The shield draw-in and tagline settle run once per session, never on a
   // return to Home within the same session (§10.6, D15's Home direction).
@@ -75,27 +87,22 @@ export function Home({
         </header>
 
         <nav className="home-actions" aria-label="What would you like to do?">
-          <button type="button" className="choice" onClick={onCheck}>
-            <span className="choice__icon" aria-hidden="true">
-              <IconMessageSquare size={24} strokeWidth={2} />
-            </span>
-            <span className="choice__body">
-              <span className="choice__title">{copy.home_check_title}</span>
-              <span className="choice__sub">{copy.home_check_sub}</span>
-            </span>
-            <IconChevronRight size={20} className="choice__go" aria-hidden="true" />
-          </button>
-
-          <button type="button" className="choice" onClick={onListen}>
-            <span className="choice__icon choice__icon--safe" aria-hidden="true">
-              <IconMic size={24} strokeWidth={2} />
-            </span>
-            <span className="choice__body">
-              <span className="choice__title">{copy.home_listen_title}</span>
-              <span className="choice__sub">{copy.home_listen_sub}</span>
-            </span>
-            <IconChevronRight size={20} className="choice__go" aria-hidden="true" />
-          </button>
+          <ChoiceCard
+            onClick={onCheck}
+            icon={<IconMessageSquare size={24} strokeWidth={2} />}
+            title={copy.home_check_title}
+            sub={copy.home_check_sub}
+            animateIn={entering && !reducedMotion}
+            delayMs={CHOICE_ENTER_DELAY_MS[0]}
+          />
+          <ChoiceCard
+            onClick={onListen}
+            icon={<IconMic size={24} strokeWidth={2} />}
+            title={copy.home_listen_title}
+            sub={copy.home_listen_sub}
+            animateIn={entering && !reducedMotion}
+            delayMs={CHOICE_ENTER_DELAY_MS[1]}
+          />
         </nav>
 
         {onEnginePreferenceChange && (
@@ -119,5 +126,67 @@ export function Home({
         </div>
       </div>
     </main>
+  )
+}
+
+/**
+ * One of the two front-door actions. When `animateIn` is set (first paint of
+ * the session, motion allowed) it rises in as the tail of the brand entrance;
+ * every other render — including every later visit to Home this session — is
+ * a plain, motion-free button, so navigating back here never re-plays anything.
+ */
+function ChoiceCard({
+  onClick,
+  icon,
+  title,
+  sub,
+  animateIn,
+  delayMs,
+}: {
+  onClick: () => void
+  icon: ReactNode
+  title: string
+  sub: string
+  animateIn: boolean
+  delayMs: number
+}) {
+  const body = (
+    <>
+      <span className="choice__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="choice__body">
+        <span className="choice__title">{title}</span>
+        <span className="choice__sub">{sub}</span>
+      </span>
+      <IconChevronRight size={20} className="choice__go" aria-hidden="true" />
+    </>
+  )
+
+  if (!animateIn) {
+    return (
+      <button type="button" className="choice" onClick={onClick}>
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <motion.button
+      type="button"
+      className="choice"
+      onClick={onClick}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        type: 'spring',
+        stiffness: 420,
+        damping: 30,
+        mass: 0.7,
+        delay: delayMs / 1000,
+      }}
+    >
+      {body}
+    </motion.button>
   )
 }

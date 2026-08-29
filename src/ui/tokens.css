@@ -8,11 +8,14 @@
  * ribbons) that makes a consumer safety tool look like the thing it guards
  * against.
  *
- * OWN-WORLD: Heat #FA5D19 on graphite #262626 over near-black #0B0B0C, with
- * paper #F9F9F9 type. Heat is rationed to one thing per screen — the action —
- * so that when a verdict floods it edge to edge, the escalation is felt as
- * area, not hue. Emerald for safe, amber for caution. Flat surfaces, one
- * hairline border, no glow, no bezels, no faceted emblems.
+ * OWN-WORLD: Kavach blue #4C7BFF on graphite #262626 over near-black #0B0B0C,
+ * with paper #F9F9F9 type. Brand blue is rationed to one thing per screen —
+ * the action — and Heat #FA5D19 is rationed to one thing across the whole
+ * app — danger — so that when a verdict floods the screen edge to edge, the
+ * escalation is felt as area and as a colour that means only one thing, not
+ * a colour doing double duty as both "tap here" and "this is a scam".
+ * Emerald for safe, amber for caution. Flat surfaces, one hairline border,
+ * no glow, no bezels, no faceted emblems.
  *
  * STORY: paste -> read the verdict -> see your own words marked -> understand
  * why in one sentence -> know what to do. Proof of on-device work is one tap
@@ -57,8 +60,11 @@
   --text-inverse: #0b0b0c;
 
   /* ---- brand ----
-   * Heat carries the primary action. Text on a Heat fill is ink, not white:
-   * white on Heat is 3.1:1 and fails AA, ink is 6.3:1. */
+   * Kavach blue — trust and the shield, never the alarm. Every generic action
+   * (primary buttons, focus rings, links, the wordmark, "actively working"
+   * states) lives here. Heat is reserved for danger and for evidence marks in
+   * the user's own message — it never again means "tap here." Text on a Heat
+   * fill is ink, not white: white on Heat is 3.1:1 and fails AA, ink is 6.3:1. */
   --heat: #fa5d19;
   --heat-hover: #ff7336;
   --heat-active: #d8490b;
@@ -66,6 +72,18 @@
   --heat-on-tint: #ffa280;
   --heat-border: rgba(250, 93, 25, 0.4);
   --on-heat: #0b0b0c;
+
+  /* ---- brand accent ----
+   * Kavach blue, distinct from all three verdict hues on purpose (checked
+   * against danger/caution/safe by eye and by hue angle, not just contrast).
+   * Ink on Brand is 5.2:1; white fails here the same way it fails on Heat. */
+  --brand: #4c7bff;
+  --brand-hover: #6d94ff;
+  --brand-active: #345fe0;
+  --brand-tint: rgba(76, 123, 255, 0.16);
+  --brand-on-tint: #aec4ff;
+  --brand-border: rgba(76, 123, 255, 0.4);
+  --on-brand: #0b0b0c;
 
   /* ---- verdict roles ----
    * -accent: the state colour.  -field: the flooded region behind a verdict.
@@ -156,7 +174,7 @@
   --tap-min: 48px; /* Material minimum. Android-first, never overridden. */
   --content-max: 34rem;
   --page-x: var(--sp-5);
-  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--heat);
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--brand);
 }
 
 /* ---- light theme ----
@@ -185,6 +203,14 @@
   --heat-border: rgba(212, 71, 10, 0.4);
   --on-heat: #ffffff;
 
+  --brand: #2a4bd8;
+  --brand-hover: #3d5ef0;
+  --brand-active: #1e39b0;
+  --brand-tint: #e6ecff;
+  --brand-on-tint: #1a34a0;
+  --brand-border: rgba(42, 75, 216, 0.32);
+  --on-brand: #ffffff;
+
   --danger-accent: #d4470a;
   --danger-field: linear-gradient(180deg, #ffd9c9 0%, #ffece4 62%, var(--bg) 100%);
   --danger-tint: #ffece4;
@@ -210,7 +236,7 @@
   --shadow-2: 0 -2px 16px rgba(11, 11, 12, 0.08);
   --shadow-3: 0 16px 48px rgba(11, 11, 12, 0.18);
 
-  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--heat);
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--brand);
 }
 
 /* ---- reduced motion ----
