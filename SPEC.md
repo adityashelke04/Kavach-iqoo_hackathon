@@ -2118,6 +2118,39 @@ fallback. Confirm the model cache survives alongside the SW cache.
 **airplane mode on, launch from the home screen icon, paste a scam message with
 On-device selected, and get a correct verdict.**
 
+**Built, and what a machine can check is checked** — `npm run test:offline`
+drives a real Chrome at 412×915: it asserts the manifest declares a 192, a 512
+and a `maskable` icon, that every declared icon is actually served as an image,
+that the worker takes control and precaches the shell, that Home's privacy line
+switches to its offline wording the moment the network is cut, and that a cold
+launch with the network gone still reaches `danger` on a scam with the evidence
+highlighted.
+
+**Two things that gate cannot reach, and why:**
+
+1. **The model offline.** A fresh browser profile has never downloaded weights,
+   so the offline run falls back to rules (D2) — the right thing to assert
+   there, but it is not the on-device claim. Only the phone can prove that.
+2. **`navigator.onLine` after a cold launch.** CDP network emulation keeps
+   blocking requests across a navigation but reports `onLine === true` in the
+   fresh document, so the offline wording is asserted on the network-cut-while-
+   open pass instead, where the signal is trustworthy. A phone in real airplane
+   mode reports `false` and both passes show it.
+
+**Traps found and closed while building this:**
+
+- The manifest shipped `icons: []`. Chrome on Android does not offer to install
+  without a 192 and a 512, so the exit criterion was unreachable, not merely
+  unpolished. `npm run icons` renders the set from the same paths as
+  `ShieldLogo` and commits them to `public/icons/`.
+- `vercel.json`'s SPA rewrite had no `icons/` exclusion, so in production every
+  icon request would have returned `index.html`. Local previews would not have
+  shown this — only an install attempt on the deployed URL would, which is the
+  worst possible place to find it. The gate now fetches every declared icon and
+  asserts an `image/*` content type.
+- A `maskable` icon is not optional on Android. Without one the launcher
+  composites the `any` icon onto a white disc.
+
 **Rehearse §13 beats 1, 2, 4 and 6 here, end to end.** From this point the demo
 exists and everything else improves it. If the night goes badly from here, you
 still have a complete story.
@@ -2195,6 +2228,36 @@ device. Fix only what the rehearsal breaks.
 
 ---
 
+### The one on-device session — P2, P7 and P8 in about ten minutes
+
+Three phases are now blocked on the same thing: nobody has held the phone. They
+share one session, in this order, because each step leaves the phone in the
+state the next one needs. Deploy first (`vercel --prod`), then, on the iQOO, in
+Chrome:
+
+1. **`/dev/probe`** — confirm `isSecureContext` is true and WebGPU is present.
+   If this fails nothing below can pass; stop and read the secure-context trap
+   in P0.
+2. **`/dev/llm`** — read `maxStorageBufferBindingSize` and **write the number
+   down**. It decides the tier (`pickTier`, `models.ts`) and it is the number
+   §8.1's empty measurement table wants. Load the Standard tier, watch it
+   generate, and record tokens/sec. **This is P2's go/no-go.**
+3. **Reload `/dev/llm` and load the same tier again.** It must come from cache
+   rather than re-downloading. That is P7's second exit criterion, and it is
+   also what makes step 6 possible.
+4. **Open `/`, run one scam and one legitimate message** with On-device
+   selected. P7's first exit criterion.
+5. **Install it.** Chrome menu → *Add to home screen*, or take the offer on
+   Home. Confirm the launcher icon is the shield on its dark ground and not a
+   mark on a white disc — if it is a white disc, the maskable icon did not
+   ship.
+6. **Airplane mode on. Launch from the home-screen icon. Paste a scam.** A
+   correct verdict here is P8's exit criterion and §13 beat 4 — the whole
+   pitch, in one action.
+
+Steps 1–4 tick P2 and P7. Steps 5–6 tick P8. Fill in §8.1's table from step 2
+before ticking anything.
+
 ### Phase completion log
 
 Append one line per phase as it lands: phase, time finished, anything the next
@@ -2209,6 +2272,7 @@ session needs to know that is not already in this document.
 | UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
 | P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
+| P8 | built, UNVERIFIED on device | Icons generated (`npm run icons`), manifest hardened, fonts runtime-cached so the offline run looks like the online one, install offer on Home, and Home's privacy line now changes wording when the network goes. New gate: `npm run test:offline`. Two production-only bugs closed on the way: the manifest had no icons at all, and `vercel.json` would have rewritten `/icons/*` to `index.html`. Playwright (`playwright-core` + the system Chrome channel, no browser download) is now the driver for the new scripts; `mobile-check.mjs` keeps its own CDP client on purpose. |
 | P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 

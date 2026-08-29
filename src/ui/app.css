@@ -1655,3 +1655,64 @@
 .learned-title {
   margin-top: var(--sp-5);
 }
+
+/* --- Install offer (§11 P8) -----------------------------------------------
+   Rendered only when the browser has told us the app is installable and is not
+   already installed, so it is absent for the whole life of the installed copy.
+   Deliberately quieter than a ChoiceCard: it is an offer, not one of the two
+   things the app is for. */
+.install-offer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  /* §12's mobile gate fails any tap target under 44px. */
+  min-height: 44px;
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.install-offer:active {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.install-offer__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.install-offer__title {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+
+.install-offer__sub {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.install-offer__go {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* Offline is not an error state — it is the claim coming true (§13 beat 4), so
+   the line brightens rather than greying out, and the breathing dot keeps
+   breathing. */
+.privacy-line--offline .privacy-line__text {
+  color: var(--text);
+}

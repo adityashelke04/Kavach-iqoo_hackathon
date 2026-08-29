@@ -62,6 +62,11 @@ npm run test:corpus   # corpus regression + false-positive gate (hard gate)
 npm run test:smoke    # renders every screen against real engine output
 npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
 npm run test:feedback # adaptive weighting, and that it cannot break the gate (D14)
+npm run test:offline  # PWA: manifest installable, every icon really served,
+                      # worker takes control, and a cold launch with the network
+                      # cut still reaches a correct verdict (P8)
+npm run icons         # regenerate public/icons from ShieldLogo. Only needed
+                      # when the mark or the ground colour changes.
 npm run test:mobile   # renders at 412x915 in Chrome; asserts no sideways
                       # scroll, no tap target under 44px, no percentage in the
                       # DOM, and drives Check -> Verdict for scam and legit
@@ -79,6 +84,10 @@ Dev-only routes: `/dev/ui` (primitive gallery), `/dev/engines` (raw engine outpu
 Rules engine, all four screens, and Listen mode are done and pass every gate.
 The UI was rebuilt against D11 — read that entry before changing any copy.
 
-Still open: P2 (WebLLM go/no-go), P3 (CloudDetector), P7 (LocalDetector),
-P8 (PWA hardening + offline demo), P9 (device telemetry panel), P10
-(orchestrator hardening + triple-tap failsafe). See SPEC.md §11.
+P3 (CloudDetector) is done. P8 (PWA + offline) is built and passes
+`test:offline`, but like P2 and P7 it is **unverified on the phone** — all three
+are blocked on one ten-minute on-device session, scripted in §11 under "The one
+on-device session". Do that before building anything else.
+
+Still open after it: P9 (device telemetry panel), P10 (orchestrator hardening +
+triple-tap failsafe), P12 (tuning, rehearsal, freeze). See SPEC.md §11.

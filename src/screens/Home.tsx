@@ -8,9 +8,12 @@ import {
   IconMic,
   IconChevronRight,
   IconLock,
+  IconArrowRight,
 } from '../ui/icons.tsx'
 import { DeviceTelemetryPanel, EngineSwitch } from '../ui/components/index.tsx'
 import { useReducedMotion } from '../ui/motion.ts'
+import { useInstallPrompt } from '../pwa/install.ts'
+import { useOnline } from '../pwa/network.ts'
 
 /**
  * The two choices settle in a beat apart on first paint rather than appearing
@@ -43,6 +46,8 @@ export function Home({
   const tapCount = useRef(0)
   const lastTap = useRef(0)
   const reducedMotion = useReducedMotion()
+  const { canInstall, install } = useInstallPrompt()
+  const online = useOnline()
 
   // The shield draw-in and tagline settle run once per session, never on a
   // return to Home within the same session (§10.6, D15's Home direction).
@@ -111,13 +116,27 @@ export function Home({
           </div>
         )}
 
-        <div className="privacy-line">
+        {/* Only ever rendered when the browser has told us the app is
+            installable and is not already installed (§11 P8). */}
+        {canInstall && (
+          <button type="button" className="install-offer" onClick={() => void install()}>
+            <span className="install-offer__body">
+              <span className="install-offer__title">{copy.install_cta}</span>
+              <span className="install-offer__sub">{copy.install_sub}</span>
+            </span>
+            <IconArrowRight size={18} className="install-offer__go" aria-hidden="true" />
+          </button>
+        )}
+
+        <div className={`privacy-line${online ? '' : ' privacy-line--offline'}`}>
           <span className="privacy-line__icon" aria-hidden="true">
             <IconLock size={18} />
           </span>
-          <p className="privacy-line__text">
+          {/* aria-live so a screen-reader user is told when the claim changes,
+              rather than only sighted users seeing it swap (§10.8). */}
+          <p className="privacy-line__text" aria-live="polite">
             <span className="privacy-line__dot" aria-hidden="true" />
-            {copy.home_privacy}
+            {online ? copy.home_privacy : copy.home_privacy_offline}
           </p>
         </div>
 

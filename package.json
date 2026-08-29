@@ -12,7 +12,9 @@
     "test:smoke": "node scripts/smoke.mjs",
     "test:mobile": "node scripts/mobile-check.mjs",
     "test:fusion": "node scripts/test-fusion.mjs",
-    "test:feedback": "node scripts/test-feedback.mjs"
+    "test:feedback": "node scripts/test-feedback.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "test:offline": "node scripts/test-offline.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",
@@ -26,6 +28,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "playwright-core": "^1.62.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.9.0",
     "vite": "^7.1.0",

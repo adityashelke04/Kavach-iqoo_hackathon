@@ -100,6 +100,13 @@ export const copy = {
   home_listen_sub: 'Kavach warns you while the call is happening',
   home_privacy:
     'Messages are checked on your phone. Nothing you paste is sent anywhere.',
+  // Shown in place of the line above when the phone has no network. The claim
+  // stops being a promise at that moment and starts being something the phone
+  // is visibly doing (§13 beat 4).
+  home_privacy_offline:
+    'No signal — and Kavach still works. Everything is happening on this phone.',
+  install_cta: 'Add Kavach to your home screen',
+  install_sub: 'Opens like an app, and keeps working with no signal',
 
   // --- Engine & Privacy Switch (§10.6, §10.7) -------------------------------
   // "Engine" dropped: the two choices below (On-device / Cloud) already say

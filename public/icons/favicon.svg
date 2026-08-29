@@ -1,0 +1,29 @@
+<svg style="background:#0B0B0C" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FA5D19"/>
+      <stop offset="0.5" stop-color="#FF7A3D"/>
+      <stop offset="1" stop-color="#FFB020"/>
+    </linearGradient>
+    <linearGradient id="core" x1="14" y1="8" x2="34" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FA5D19" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#D8490B" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="spec" x1="24" y1="4" x2="24" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="0.35" stop-color="#FA5D19" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#1C1C1F" stop-opacity="0.2"/>
+    </linearGradient>
+    <filter id="glow" x="-0.2" y="-0.2" width="1.4" height="1.4">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#FA5D19" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <path d="M24 4L7 11V22C7 33.1 14.3 43.4 24 46C33.7 43.4 41 33.1 41 22V11L24 4Z"
+        fill="url(#core)" stroke="url(#g)" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M24 10L12 15.5V23.5C12 31.8 17.1 39.2 24 41.5C30.9 39.2 36 31.8 36 23.5V15.5L24 10Z"
+        stroke="url(#spec)" stroke-width="1.25" stroke-opacity="0.75" stroke-dasharray="2 2"/>
+  <path d="M24 18L18 23.5V28.5L24 32.5L30 28.5V23.5L24 18Z"
+        fill="#FA5D19" fill-opacity="0.28" stroke="#FA5D19" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="24" cy="25.5" r="2.2" fill="#F9F9F9"/>
+</svg>
