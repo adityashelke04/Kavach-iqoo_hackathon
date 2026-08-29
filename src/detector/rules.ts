@@ -3,6 +3,7 @@ import type {
   DetectionResult,
   Detector,
   Evidence,
+  RuleBriefing,
   SenderSignal,
   Tactic,
   TacticName,
@@ -385,4 +386,20 @@ export const ruleDetector: Detector = {
   async detect(input) {
     return analyzeWithRules(input)
   },
+}
+
+/**
+ * Convert a rules result into a briefing for the LLM (D15). `undefined` when
+ * rules found nothing — an empty briefing paragraph in the prompt is noise,
+ * not information.
+ */
+export function toBriefing(result: DetectionResult): RuleBriefing | undefined {
+  const tactics = result.tactics
+    .filter((t) => t.evidence.length > 0)
+    .map((t) => ({
+      name: t.name,
+      matchedPhrases: t.evidence.map((e) => e.phrase),
+    }))
+
+  return tactics.length > 0 ? { tactics } : undefined
 }

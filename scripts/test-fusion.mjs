@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
 const mod = (rel) => pathToFileURL(join(root, rel)).href
 
-const { analyzeWithRules } = await import(mod('src/detector/rules.ts'))
+const { analyzeWithRules, toBriefing } = await import(mod('src/detector/rules.ts'))
 const { classifySender } = await import(mod('src/detector/sender.ts'))
 const { validateResult } = await import(mod('src/detector/validate.ts'))
 const { fuse, fuseConfidence, mergeTactics, LLM_WEIGHT } = await import(mod('src/detector/fuse.ts'))
@@ -271,6 +271,32 @@ group('mergeTactics')
     merged[0].evidence.length === 1 && merged[0].evidence[0].start === 5,
     'an unresolved span is upgraded when the other engine located it',
   )
+}
+
+/* ------------------------------------------------------------------ */
+group('toBriefing')
+
+{
+  const scam = { text: 'Stay on the call and share the OTP now, do not tell anyone.', channel: 'text' }
+  const rules = analyzeWithRules(scam, NO_SENDER)
+  const briefing = toBriefing(rules)
+  check(briefing !== undefined, 'a message with tactics produces a briefing')
+  check(
+    briefing.tactics.every((t) => t.matchedPhrases.length > 0),
+    'every briefed tactic carries at least one matched phrase',
+  )
+  check(
+    briefing.tactics.some((t) => t.name === 'extraction'),
+    'the extraction tactic rules found is present in the briefing',
+    JSON.stringify(briefing),
+  )
+}
+
+{
+  const legit = { text: 'Your OTP is 4821. Do not share this OTP with anyone.', channel: 'text' }
+  const rules = analyzeWithRules(legit, NO_SENDER)
+  const briefing = toBriefing(rules)
+  check(briefing === undefined, 'a message rules found nothing in produces no briefing at all')
 }
 
 /* ------------------------------------------------------------------ */
