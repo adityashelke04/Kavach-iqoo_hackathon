@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AppBar } from '../ui/primitives/index.tsx'
+import {
+  MODELS,
+  CEILING_PROBES,
+  DESKTOP_PROBES,
+  pickTier,
+  type ModelSpec,
+} from '../detector/models.ts'
 
 /**
  * P2 spike — SPEC.md §11. Dev-only, throwaway. P7 rewrites this properly.
@@ -70,7 +77,16 @@ export function Llm() {
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
   const [taskUrl, setTaskUrl] = useState('')
+  const [maxBinding, setMaxBinding] = useState<number | null>(null)
+  const [deviceMemoryGB, setDeviceMemoryGB] = useState<number | null>(null)
+  const [selected, setSelected] = useState<ModelSpec>(MODELS.standard)
   const { used, sample } = useStorageEstimate()
+
+  // The whole tier decision hangs on this one number (see models.ts).
+  const recommended = pickTier({
+    maxStorageBufferBindingSize: maxBinding,
+    deviceMemoryGB,
+  })
 
   // Environment first: most "it doesn't work" reports are the secure-context
   // trap, not a missing GPU.
@@ -103,9 +119,11 @@ export function Llm() {
             })
             const maxBuffer = adapter.limits?.maxStorageBufferBindingSize
             if (typeof maxBuffer === 'number') {
+              setMaxBinding(maxBuffer)
+              const asMb = maxBuffer / 1024 / 1024
               lines.push({
-                label: 'Max buffer',
-                value: `${(maxBuffer / 1024 / 1024).toFixed(0)} MB`,
+                label: 'maxStorageBufferBindingSize',
+                value: `${asMb.toFixed(0)} MB${asMb <= 128 ? '  <-- the ceiling' : ''}`,
               })
             }
           }
@@ -116,7 +134,10 @@ export function Llm() {
 
       lines.push({ label: 'Hardware threads', value: String(navigator.hardwareConcurrency ?? '?') })
       const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
-      if (mem) lines.push({ label: 'Device memory', value: `${mem} GB (approx)` })
+      if (mem) {
+        setDeviceMemoryGB(mem)
+        lines.push({ label: 'Device memory', value: `${mem} GB (browser-reported)` })
+      }
 
       setEnv(lines)
       await sample()
@@ -134,18 +155,14 @@ export function Llm() {
     try {
       const webllm = await import('@mlc-ai/web-llm')
 
-      // Pick the smallest prebuilt model rather than hardcoding an id that may
-      // vanish between versions. Smallest = fastest answer to the only
-      // question this page asks.
-      const candidates = webllm.prebuiltAppConfig.model_list
-        .filter((m) => typeof m.vram_required_MB === 'number')
-        .sort((a, b) => (a.vram_required_MB ?? 0) - (b.vram_required_MB ?? 0))
-
-      const chosen = candidates[0]
-      if (!chosen) throw new Error('no prebuilt models listed')
+      const chosen = selected
+      const known = webllm.prebuiltAppConfig.model_list.find(
+        (m) => m.model_id === chosen.modelId,
+      )
+      if (!known) throw new Error(`${chosen.modelId} is not in this WebLLM build`)
 
       const loadStart = performance.now()
-      const engine = await webllm.CreateMLCEngine(chosen.model_id, {
+      const engine = await webllm.CreateMLCEngine(chosen.modelId, {
         initProgressCallback: (r) => setProgress(r.text),
       })
       const loadMs = performance.now() - loadStart
@@ -167,8 +184,9 @@ export function Llm() {
       setOutput(text)
       setResults([
         { label: 'Runtime', value: 'WebLLM (MLC)' },
-        { label: 'Model', value: chosen.model_id },
-        { label: 'Declared VRAM', value: `${chosen.vram_required_MB ?? '?'} MB` },
+        { label: 'Model', value: chosen.label },
+        { label: 'Parameters', value: chosen.params },
+        { label: 'Declared VRAM', value: `${chosen.vramMB} MB` },
         { label: 'Load time', value: `${(loadMs / 1000).toFixed(1)} s` },
         { label: 'Generation', value: `${genMs.toFixed(0)} ms` },
         { label: 'Completion tokens', value: String(completionTokens) },
@@ -185,7 +203,7 @@ export function Llm() {
       setError((err as Error).message || String(err))
       setPhase('failed')
     }
-  }, [sample])
+  }, [sample, selected])
 
   const runMediaPipe = useCallback(async () => {
     if (!taskUrl.trim()) {
@@ -283,14 +301,59 @@ export function Llm() {
         )}
 
         <section className="panel">
-          <h2 className="panel__title">WebLLM — smallest prebuilt model</h2>
+          <h2 className="panel__title">WebLLM — find the ceiling</h2>
           <p className="tactic__note">
-            Downloads from a public CDN, no account needed, and caches in IndexedDB. Run it once,
-            then reload this page and run it again: the second load should be far faster and add no
-            storage.
+            Start at the recommended tier, then walk up the list until one fails. The first failure
+            is the real limit on this device, and it is almost always the buffer cap above rather
+            than memory. Run a model once, then reload and run it again: the second load should be
+            fast and add no storage.
           </p>
-          <button className="btn btn--primary" onClick={runWebLlm} disabled={busy}>
-            {busy ? 'Working…' : 'Load and generate'}
+
+          <div className="meta-row">
+            <span className="meta-row__k">Recommended tier</span>
+            <span className="meta-row__v">
+              {recommended} · {MODELS[recommended].label}
+            </span>
+          </div>
+
+          <div className="examples" style={{ marginTop: 'var(--sp-3)' }}>
+            {[
+              MODELS.low,
+              MODELS.standard,
+              MODELS.max,
+              ...CEILING_PROBES,
+              ...DESKTOP_PROBES,
+            ].map((m) => (
+              <button
+                key={m.modelId}
+                type="button"
+                className="example"
+                onClick={() => setSelected(m)}
+                aria-pressed={selected.modelId === m.modelId}
+              >
+                <span
+                  className={`example__dot example__dot--${
+                    selected.modelId === m.modelId ? 'scam' : 'legit'
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="example__body">
+                  <span className="example__title">{m.label}</span>
+                  <span className="example__sub">
+                    {m.params} · {m.vramMB} MB declared
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="btn btn--primary"
+            onClick={runWebLlm}
+            disabled={busy}
+            style={{ marginTop: 'var(--sp-4)' }}
+          >
+            {busy ? 'Working…' : `Load ${selected.label}`}
           </button>
         </section>
 
