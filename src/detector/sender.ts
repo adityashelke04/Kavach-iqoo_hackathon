@@ -44,6 +44,52 @@ const SHORTCODE = /^\d{5,6}$/
 
 const INTERNATIONAL = /^\+(\d{1,4})\d{6,}$/
 
+/**
+ * Pull a sender out of pasted text so the user does not have to type one.
+ *
+ * People paste in a few recognisable shapes: a "From: X" header, a WhatsApp
+ * export line, or the sender ID on its own first line the way Android's
+ * message app shows it. When we find one we lift it out of the body, because
+ * leaving "From: +91 98765 43210" in the message would make the body's own
+ * phone-number pattern fire and double-count the same fact.
+ *
+ * Returns the original text unchanged when nothing recognisable is found —
+ * guessing wrong is worse than not guessing.
+ */
+export function splitSender(pasted: string): { sender: string | null; body: string } {
+  const text = pasted.replace(/\r\n/g, '\n')
+
+  // "From: VM-SBIINB" / "Sender - +91 98765 43210"
+  const labelled = /^[ \t]*(?:from|sender|sent by)[ \t]*[:\-][ \t]*(.+?)[ \t]*$/im.exec(text)
+  if (labelled?.[1]) {
+    const candidate = labelled[1].trim()
+    if (looksLikeSender(candidate)) {
+      return { sender: candidate, body: text.replace(labelled[0], '').trim() }
+    }
+  }
+
+  // WhatsApp export: "[28/08/26, 9:14 pm] +91 98765 43210: message"
+  const wa = /^\[[^\]]+\]\s*([^:]{3,40}):\s*/m.exec(text)
+  if (wa?.[1] && looksLikeSender(wa[1].trim())) {
+    return { sender: wa[1].trim(), body: text.replace(wa[0], '').trim() }
+  }
+
+  // A bare sender on its own first line, as Android's messaging app shows it.
+  const lines = text.split('\n')
+  const first = lines[0]?.trim() ?? ''
+  if (lines.length > 1 && first.length <= 40 && looksLikeSender(first)) {
+    return { sender: first, body: lines.slice(1).join('\n').trim() }
+  }
+
+  return { sender: null, body: pasted }
+}
+
+/** Only shapes we can actually classify count as a sender (§5.5 table). */
+function looksLikeSender(s: string): boolean {
+  const kind = classifySender(s).kind
+  return kind !== 'unknown' && kind !== 'email_or_other'
+}
+
 export function classifySender(raw: string | undefined | null): SenderSignal {
   const original = (raw ?? '').trim()
 

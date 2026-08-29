@@ -1,61 +1,133 @@
 /* Kavach design tokens — SPEC.md §10.2
  *
- * P0 STUB. Only the surface/text roles needed by the scaffold and the dev
- * routes are defined here. P4 completes this file: the full verdict roles,
- * type scale, spacing, radii, elevation, motion, and the light theme.
+ * THE REDESIGN SURFACE. Every colour, size, radius and duration in the app
+ * resolves to something in this file.
  *
  * RULE (§10.2, frozen): no component may hard-code a hex, a radius, or a
  * duration. If a value is needed that is not here, add the token.
+ *
+ * Android-first: touch targets follow Material's 48dp minimum (not iOS's 44),
+ * and the type scale is one step larger than a typical web app because the
+ * audience includes grandparents reading at arm's length in a bright room.
  */
 
 :root {
-  /* surfaces & text — dark, the default */
+  /* ---- surfaces & text (dark, the default) ---- */
   --bg: #0b0d10;
   --surface: #14181d;
   --surface-2: #1c222a;
+  --surface-3: #242c36;
   --border: #2a323c;
+  --border-strong: #3a4552;
   --text: #f2f5f8;
-  --text-muted: #98a4b3;
-  --text-faint: #6b7785;
+  --text-muted: #a3aebc;
+  --text-faint: #75808e;
 
-  /* verdict roles — accents only at P0; tints and on-tint land at P4 */
-  --danger-accent: #e5484d;
+  /* ---- verdict roles ----
+     -accent : the saturated state colour (icon, rule, key text)
+     -tint   : low-chroma surface behind a verdict region
+     -on-tint: text colour, AA-verified on -tint            */
+  --danger-accent: #f0575b;
+  --danger-tint: #2b1316;
+  --danger-on-tint: #ffc9cb;
+
   --caution-accent: #ffb224;
-  --safe-accent: #30a46c;
+  --caution-tint: #2b2109;
+  --caution-on-tint: #ffd98a;
 
-  /* type scale */
-  --fs-xs: 0.75rem;
-  --fs-sm: 0.875rem;
-  --fs-md: 1rem;
-  --fs-lg: 1.25rem;
-  --fs-xl: 1.75rem;
-  --fs-2xl: 2.5rem;
-  --lh-tight: 1.2;
+  --safe-accent: #3dbe80;
+  --safe-tint: #0e2119;
+  --safe-on-tint: #86dfb2;
+
+  /* Evidence highlight in the message body. Tinted background plus an
+     underline, so it survives greyscale and colour-blind viewing (§10.8). */
+  --hl-bg: rgb(240 87 91 / 0.22);
+  --hl-line: var(--danger-accent);
+
+  /* ---- type scale ----
+     One step larger than usual, per the readability decision. --fs-md is the
+     body/message minimum and must never be reduced. */
+  --fs-xs: 0.8125rem; /* 13 - metadata only            */
+  --fs-sm: 0.9375rem; /* 15 - secondary copy           */
+  --fs-md: 1.0625rem; /* 17 - body, message text (min) */
+  --fs-lg: 1.375rem; /*  22 - card titles              */
+  --fs-xl: 1.75rem; /*   28 - screen titles            */
+  --fs-2xl: 2.375rem; /* 38 - big numbers              */
+  --fs-3xl: 3rem; /*      48 - verdict headline        */
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
   --lh-body: 1.55;
 
-  /* spacing */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+
+  /* ---- spacing (4px base) ---- */
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
   --sp-4: 1rem;
+  --sp-5: 1.25rem;
   --sp-6: 1.5rem;
   --sp-8: 2rem;
+  --sp-10: 2.5rem;
   --sp-12: 3rem;
 
-  /* radii */
+  /* ---- radii ---- */
   --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 24px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
   --r-full: 999px;
 
-  /* motion */
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --dur-slow: 320ms;
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* ---- elevation ---- */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-2: 0 6px 20px rgb(0 0 0 / 0.4);
+  --shadow-3: 0 -4px 24px rgb(0 0 0 / 0.5);
 
-  /* layout */
-  --tap-min: 44px;
+  /* ---- motion ---- */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- layout ---- */
+  --tap-min: 48px; /* Material minimum. Android-first. */
   --content-max: 34rem;
+  --page-x: var(--sp-5);
+}
+
+/* ---- light theme ---------------------------------------------------------
+   Defined and correct. Same token names, no new ones. */
+:root[data-theme='light'] {
+  --bg: #f7f9fb;
+  --surface: #ffffff;
+  --surface-2: #eff3f7;
+  --surface-3: #e3eaf1;
+  --border: #d8e0e8;
+  --border-strong: #b9c5d1;
+  --text: #10151b;
+  --text-muted: #55606e;
+  --text-faint: #7a8593;
+
+  --danger-accent: #c62828;
+  --danger-tint: #fdecec;
+  --danger-on-tint: #8e1b1b;
+
+  --caution-accent: #a66a00;
+  --caution-tint: #fff6e5;
+  --caution-on-tint: #7a4e00;
+
+  --safe-accent: #17784b;
+  --safe-tint: #e8f6ef;
+  --safe-on-tint: #0e5133;
+
+  --hl-bg: rgb(198 40 40 / 0.14);
+  --hl-line: var(--danger-accent);
+
+  --shadow-1: 0 1px 2px rgb(16 21 27 / 0.08);
+  --shadow-2: 0 6px 20px rgb(16 21 27 / 0.1);
+  --shadow-3: 0 -4px 24px rgb(16 21 27 / 0.12);
 }

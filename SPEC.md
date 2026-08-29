@@ -1909,7 +1909,7 @@ the night gets eaten.
 
 ---
 
-### ☐ P4 — Design system · ~1.5h
+### ☑ P4 — Design system · ~1.5h — **DONE**
 
 **Goal:** the token layer and the primitives the next two screens actually need.
 
@@ -1930,7 +1930,7 @@ is the version of this that fails, and D8 promises a redesign.
 
 ---
 
-### ☐ P5 — Verdict screen and highlighting · ~2h
+### ☑ P5 — Verdict screen and highlighting · ~2h — **DONE**
 
 **Goal:** the most important screen, driven by fixture data.
 
@@ -1946,7 +1946,7 @@ SenderCard variants look right on the phone.
 
 ---
 
-### ☐ P6 — Home screen, end to end · ~1.5h · **first demoable build**
+### ☑ P6 — Home screen, end to end · ~1.5h — **DONE**
 
 **Goal:** close the loop.
 
@@ -2029,7 +2029,7 @@ cancel aborts genuinely; triple-tap works on the phone.
 
 ---
 
-### ☐ P11 — Listen mode · ~2.5h · **timeboxed, kill-criterion below**
+### ☑ P11 — Listen mode · ~2.5h — **DONE (built early)**
 
 **Goal:** live-call detection through the mic.
 
@@ -2075,6 +2075,8 @@ session needs to know that is not already in this document.
 | Phase | Finished | Notes for the next session |
 |---|---|---|
 | P0 | code complete | Deployed URL + on-device WebGPU check still pending. `/dev/probe` reports `isSecureContext` first — see the secure-context trap above. |
+| P4-P6 | done | Home / Check / Verdict wired to the orchestrator. Screens compose, components render, detector decides - no component imports an engine. `npm run test:smoke` renders every screen against real engine output. |
+| P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | | | |
 

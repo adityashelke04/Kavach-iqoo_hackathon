@@ -1,0 +1,465 @@
+/* Kavach component styles — everything resolves to tokens.css (§10.2).
+ * Android-first: 48dp targets, bottom-anchored primary actions, system font. */
+
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
+}
+
+.screen__body {
+  flex: 1;
+  padding: var(--sp-4) var(--page-x) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* Primary action sits in the bottom third, thumb-reachable, and stays put
+   when the keyboard opens. */
+.screen__footer {
+  position: sticky;
+  bottom: 0;
+  padding: var(--sp-3) var(--page-x) calc(var(--sp-4) + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+/* ---- top bar ---- */
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap-min);
+  padding: var(--sp-2) var(--page-x);
+}
+.appbar__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+.appbar__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  margin-left: calc(var(--sp-2) * -1);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.appbar__back:active {
+  background: var(--surface-2);
+}
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 56px;
+  width: 100%;
+  padding: 0 var(--sp-5);
+  border: 0;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn--primary {
+  background: var(--text);
+  color: var(--bg);
+}
+.btn--secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+  min-height: var(--tap-min);
+}
+.btn--danger {
+  background: var(--danger-accent);
+  color: #fff;
+}
+
+/* ---- the two big home choices ---- */
+.choice {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.choice:active {
+  transform: scale(0.99);
+}
+.choice__icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: 26px;
+}
+.choice__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+.choice__sub {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: var(--sp-1) 0 0;
+  line-height: var(--lh-snug);
+}
+
+/* ---- inputs ---- */
+.field {
+  display: block;
+  width: 100%;
+  padding: var(--sp-4);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+.field:focus-visible {
+  outline: 2px solid var(--text-muted);
+  outline-offset: 2px;
+}
+.field::placeholder {
+  color: var(--text-faint);
+}
+.field--message {
+  min-height: 9.5rem;
+}
+.field--sender {
+  min-height: var(--tap-min);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.label {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+}
+.hint {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  margin: var(--sp-2) 0 0;
+}
+
+/* Detected-sender strip */
+.detected {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.detected__label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.detected__value {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  word-break: break-all;
+}
+
+/* ---- example chips ---- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  min-height: var(--tap-min);
+  padding: 0 var(--sp-4);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.chip:active {
+  background: var(--surface-3);
+}
+
+/* ---- verdict ---- */
+.verdict {
+  padding: var(--sp-8) var(--page-x) var(--sp-6);
+  text-align: center;
+}
+.verdict--danger {
+  background: var(--danger-tint);
+  color: var(--danger-on-tint);
+}
+.verdict--caution {
+  background: var(--caution-tint);
+  color: var(--caution-on-tint);
+}
+.verdict--safe {
+  background: var(--safe-tint);
+  color: var(--safe-on-tint);
+}
+.verdict__icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: var(--sp-3);
+}
+.verdict__head {
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+.verdict__sub {
+  font-size: var(--fs-md);
+  margin: var(--sp-3) 0 0;
+  opacity: 0.92;
+  line-height: var(--lh-snug);
+}
+
+/* ---- cards ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+}
+.card__title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.card__note {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: var(--sp-2) 0 0;
+  line-height: var(--lh-snug);
+}
+.card--danger {
+  border-left: 3px solid var(--danger-accent);
+}
+.card--caution {
+  border-left: 3px solid var(--caution-accent);
+}
+.card--safe {
+  border-left: 3px solid var(--safe-accent);
+}
+.card--accent {
+  background: var(--surface-2);
+}
+
+.section-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: var(--sp-2) 0 0;
+}
+
+/* ---- the message with evidence highlighted ---- */
+.message {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.message mark {
+  background: var(--hl-bg);
+  color: var(--text);
+  border-bottom: 2px solid var(--hl-line);
+  border-radius: 3px;
+  padding: 1px 0;
+}
+
+.evidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.evidence {
+  font-size: var(--fs-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 2px var(--sp-2);
+}
+
+/* ---- listen mode ---- */
+.listen-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-lg);
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-full);
+  background: var(--danger-accent);
+  animation: pulse 1.6s var(--ease-out) infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  min-height: 10rem;
+}
+.transcript__interim {
+  color: var(--text-faint);
+}
+
+/* Full-screen mid-call interrupt */
+.interrupt {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--danger-tint);
+  color: var(--danger-on-tint);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-5);
+  padding: var(--sp-8) var(--page-x);
+  animation: rise var(--dur-slow) var(--ease-spring);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* ---- analysing ---- */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text);
+  border-radius: var(--r-full);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Verdict entrance. Transform + opacity only, so it stays on the compositor
+   and never competes with inference for frame time (§10.4). */
+.reveal {
+  animation: reveal var(--dur-slow) var(--ease-spring) both;
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.stagger > * {
+  animation: reveal var(--dur-base) var(--ease-out) both;
+}
+.stagger > *:nth-child(1) {
+  animation-delay: 40ms;
+}
+.stagger > *:nth-child(2) {
+  animation-delay: 90ms;
+}
+.stagger > *:nth-child(3) {
+  animation-delay: 140ms;
+}
+.stagger > *:nth-child(4) {
+  animation-delay: 190ms;
+}
+.stagger > *:nth-child(n + 5) {
+  animation-delay: 240ms;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+.center {
+  text-align: center;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}

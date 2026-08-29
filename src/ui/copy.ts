@@ -39,6 +39,10 @@ export const copy = {
   sender_hint_registered: 'Registered business sender',
   sender_hint_personal: 'Personal mobile number',
   sender_card_title: 'Who it came from',
+  // The strongest single line in the app: the message claims to be an
+  // institution but arrived from a personal number (§5.5).
+  sender_mismatch_note:
+    'This claims to be official, but it came from a personal mobile number. Real banks and government offices can only send from a registered sender ID — they cannot text you from a normal number.',
   sender_personal_note:
     'This came from a personal mobile number, not a registered business sender.',
   sender_registered_note:
