@@ -164,6 +164,21 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
   }
 }
 
+/** Cleanly unload the active engine and release WebGPU memory. */
+export async function unloadEngine(): Promise<void> {
+  if (enginePromise) {
+    try {
+      const old = await enginePromise
+      await old.unload?.()
+    } catch {
+      /* ignore */
+    }
+  }
+  enginePromise = null
+  loadedModelId = null
+  emit({ fraction: null, text: 'Engine unloaded', done: true })
+}
+
 /** Start the download early so the first analysis is not also the first load. */
 export function preloadModel(tier?: Tier): void {
   void getEngine(tier).catch(() => {
