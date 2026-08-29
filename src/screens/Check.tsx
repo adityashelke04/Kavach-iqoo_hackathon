@@ -116,6 +116,18 @@ export function Check({
     })
   }, [tooShort, busy, text, sender, onSubmit])
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        if (!tooShort && !busy) {
+          run()
+        }
+      }
+    },
+    [tooShort, busy, run],
+  )
+
   const senderTone =
     signal.kind === 'dlt_header'
       ? 'registered'
@@ -140,6 +152,7 @@ export function Check({
                 className="composer__area"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
                 onPaste={(e) => {
                   const pasted = e.clipboardData.getData('text')
                   if (pasted) {
@@ -151,20 +164,32 @@ export function Check({
                 aria-label={copy.paste_placeholder}
               />
               <div className="composer__bar">
-                <button type="button" className="chip" onClick={pasteFromClipboard}>
-                  <IconCopy size={16} />
-                  <span>{copy.cta_paste}</span>
-                </button>
-                {text.length > 0 && (
+                <div className="composer__actions">
+                  <button type="button" className="chip" onClick={pasteFromClipboard}>
+                    <IconCopy size={16} />
+                    <span>{copy.cta_paste}</span>
+                  </button>
+                  {text.length > 0 && (
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => {
+                        setText('')
+                        setSender('')
+                      }}
+                    >
+                      {copy.cta_clear}
+                    </button>
+                  )}
+                </div>
+                {!tooShort && (
                   <button
                     type="button"
-                    className="chip"
-                    onClick={() => {
-                      setText('')
-                      setSender('')
-                    }}
+                    className="btn btn--primary composer__submit"
+                    onClick={run}
+                    disabled={busy}
                   >
-                    {copy.cta_clear}
+                    <span>{copy.cta_check}</span>
                   </button>
                 )}
               </div>
@@ -216,28 +241,30 @@ export function Check({
               </div>
             )}
 
-            <section>
-              <h2 className="section-head">{copy.try_example}</h2>
-              <div className="examples">
-                {EXAMPLES.map((ex) => (
-                  <button
-                    key={ex.title}
-                    type="button"
-                    className="example"
-                    onClick={() => useExample(ex)}
-                  >
-                    <span
-                      className={`example__dot example__dot--${ex.kind}`}
-                      aria-hidden="true"
-                    />
-                    <span className="example__body">
-                      <span className="example__title">{ex.title}</span>
-                      <span className="example__sub">{ex.sub}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            {text.length === 0 && (
+              <section>
+                <h2 className="section-head">{copy.try_example}</h2>
+                <div className="examples">
+                  {EXAMPLES.map((ex) => (
+                    <button
+                      key={ex.title}
+                      type="button"
+                      className="example"
+                      onClick={() => useExample(ex)}
+                    >
+                      <span
+                        className={`example__dot example__dot--${ex.kind}`}
+                        aria-hidden="true"
+                      />
+                      <span className="example__body">
+                        <span className="example__title">{ex.title}</span>
+                        <span className="example__sub">{ex.sub}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>
