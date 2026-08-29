@@ -192,6 +192,7 @@ the MVP column is not fully green, do not build it.
 | Web Share Target (share an SMS into Kavach from Android's share sheet) | Strong "real product" signal, but manifest + handler work that does not change the demo. |
 | Scan history | Contradicts the no-storage stance unless carefully designed. Needs thought we do not have time for. |
 | Haptics on verdict | Cheap and genuinely improves the DANGER moment. First thing to add if time allows. |
+| Cinematic first-open sequence on Home (§10.6) | A one-time, skippable beat — a message intercepted by the shield — before Home settles. Genuine "wow," but needs a skip control, a reduced-motion fallback and a seen-this-session flag that the rest of the Home redesign does not, so it waits until those are proven. |
 
 ### Deferred — specified, explicitly not promised
 
@@ -664,53 +665,77 @@ every call site.
 // src/detector/orchestrator.ts
 export async function analyze(
   input: DetectionInput,
-  preference: 'local' | 'cloud',
-  signal: AbortSignal,
+  preference: EnginePreference,   // 'local' | 'cloud' | 'none'
+  signal?: AbortSignal,
 ): Promise<DetectionResult>
 ```
 
+**This section describes the current (D15) behaviour.** It has been rewritten
+twice since the original draft — D12 replaced a fallback chain with fusion,
+and D15 replaced D13's progressive publish with the sequence below. If you are
+reading old context (a comment, a slide, a memory) that describes rules
+publishing first, it is describing a design this project no longer uses.
+
 Behaviour, in order:
 
-1. **Classify the sender deterministically** via `classifySender` (§5.5). This
-   happens once, in the orchestrator, before any engine runs — so all three
-   engines receive the same `SenderSignal` as an input fact rather than each
-   deriving it.
-2. Select the primary engine from the user's switch (`preference`). **Default is
-   `local`** (D6).
-3. If `await primary.isAvailable()` is false, skip to step 5.
-4. Race `primary.detect(input, signal)` against the timeout budget for that
-   engine (§8). On success, take the result.
-5. **Fall back to `RuleDetector`.** It is synchronous, always available, and
-   cannot fail. Take its result.
-6. Attach the `SenderSignal`, apply the §4 override rules (including the
-   impersonation mismatch, which depends on it), and stamp `engineUsed` and
-   `latencyMs`.
+1. **Classify the sender deterministically** via `classifySender` (§5.5),
+   once, before any engine runs, so every path sees the same `SenderSignal`.
+2. **Run the rules engine synchronously** (§8.3). Its result is *not* shown to
+   the user at this point — it becomes the **briefing** handed to the LLM
+   (`RuleBriefing`, §7), not a verdict.
+3. Select the primary LLM engine from the user's switch (`preference`).
+   **Default is `local`** (D6). If `preference` is `'none'` (Listen mode's
+   live loop, D13) or the engine is unavailable, skip straight to step 8 with
+   the rules result.
+4. **Await `primary.detect(input, signal)`**, where `input.briefing` carries
+   step 2's findings, against the timeout budget below. **Nothing is
+   published before this resolves** — this is the change D15 exists to make:
+   no verdict is shown that the LLM has not had a chance to inform.
+5. **Audit.** Union any tactic the rules engine found with real evidence that
+   the LLM's answer is missing (`mergeTactics`, unchanged from D12).
+6. **Reconsider, at most once.** If step 5 found a tactic missing from the
+   LLM's raw answer, one further call goes to the same engine, showing it its
+   own first answer plus the specific missing finding, and its response
+   replaces the LLM result before re-running step 5. This cannot loop: at most
+   two LLM calls per analysis, ever.
+7. **Fuse and decide.** Confidence combines by the D15 weighting (§16, this
+   entry); the verdict is recomputed by the shared `decideVerdict`, so §4's
+   threshold table and all four override rules apply to the merged finding
+   set regardless of which path produced it.
+8. **If every LLM attempt failed or the engine was unavailable, the rules
+   result from step 2 stands, and is shown silently** — D2's invisible
+   fallback, unchanged. This is the only path on which a rules-only result is
+   ever shown, and it is never because it won a race.
 
-Step 1 is deliberate: the sender check is the one part of detection that is
-identical and exact across every engine, including the fallback. Even a total
-engine failure still produces a correct sender verdict.
+Step 1 is deliberate: the sender check is identical and exact across every
+path, including total engine failure.
 
 **Fallback is silent.** The user is never shown an error, a retry prompt, a
-degraded-mode banner, or the word "offline" as a consequence of fallback. They
-paste a message and get a verdict. Which engine produced it is
-`console.info`-level information for us, never UI (§8.3, §9).
+degraded-mode banner, or the word "offline" as a consequence of fallback. Which
+engine produced the result is `console.info`-level information for us, never
+UI (§8.3, §9).
 
-The one exception: if the user has explicitly selected `cloud` and the device is
-offline, Home shows a quiet inline note that on-device will be used instead
-(copy key `cloud_unavailable`, §10.7). That is informing a choice the user made,
-not reporting a failure.
+The one exception: if the user has explicitly selected `cloud` and the device
+is offline, Home shows a quiet inline note that on-device will be used instead
+(copy key `cloud_unavailable`, §10.7). That is informing a choice the user
+made, not reporting a failure.
 
 ### Timeout budget
 
-| Engine | Budget | On expiry |
+| Path | Budget | On expiry |
 |---|---|---|
-| `local` | 8,000 ms | Abort, fall through to rules |
-| `cloud` | 6,000 ms | Abort, fall through to rules |
+| `local`, first call | 120,000 ms | Abort, treat as a failed engine, fall through per step 8 |
+| `local`, reconsideration call | 60,000 ms | Abort, keep the pre-reconsideration answer |
+| `cloud`, first call | 15,000 ms | Abort, treat as a failed engine, fall through per step 8 |
+| `cloud`, reconsideration call | 15,000 ms | Abort, keep the pre-reconsideration answer |
 | `rules` | — | Synchronous, no timeout possible |
 
-8 seconds is chosen to be longer than a Max-tier (§8.1) inference on the iQOO
-and shorter than a judge's patience. The number lives in one constant,
-`ENGINE_TIMEOUTS` in `orchestrator.ts`.
+These budgets are deliberately generous (a carry-forward of D13's reasoning,
+now serving D15 instead): since nothing is shown until the LLM path resolves
+or fails, a short timeout would only throw away a genuine answer — or a
+genuine correction from the reconsideration pass — that the device already
+paid for. The numbers live in one constant, `ENGINE_TIMEOUTS`, in
+`orchestrator.ts`.
 
 ---
 
@@ -725,11 +750,42 @@ export type EngineId = 'local' | 'cloud' | 'rules'
 
 export type TacticName = 'authority' | 'urgency' | 'isolation' | 'extraction'
 
+/**
+ * Where the text came from (§5.6). A speech transcript is not an SMS: it has
+ * no sender, no punctuation, spells acronyms out as "o t p", and carries
+ * call-centre framing that never appears in a text message.
+ */
+export type Channel = 'text' | 'voice'
+
+/**
+ * What a fast, deterministic first pass over the message already found,
+ * handed to whichever LLM engine runs as context for its own reading — never
+ * as a verdict (D15). Confidence is deliberately absent: the model is briefed
+ * on *what* was found, not told a number to anchor on.
+ */
+export interface RuleBriefing {
+  tactics: {
+    name: TacticName
+    /** Exact phrases the deterministic scan matched, verbatim from the text. */
+    matchedPhrases: string[]
+  }[]
+}
+
 /** What the user gives us to analyse. Sender is always optional (§5.5). */
 export interface DetectionInput {
   text: string
   /** Sender ID or number as the user typed it. Absent is normal. */
   sender?: string
+  /** Defaults to 'text'. Listen mode passes 'voice' (§5.6). */
+  channel?: Channel
+  /**
+   * The rules engine's own read of this same message, computed once by the
+   * orchestrator before any LLM runs, and handed to the LLM as briefing
+   * material (D15). Absent when the rules engine found nothing worth
+   * mentioning. `RuleDetector` ignores this field — it would be briefing
+   * itself.
+   */
+  briefing?: RuleBriefing
 }
 
 export type SenderKind =
@@ -1479,65 +1535,116 @@ Each screen: purpose, anatomy top-to-bottom, states, interactions, pattern.
 
 #### Home — `src/screens/Home.tsx`
 
-**Purpose:** get a message into the app with as little friction as possible.
+**This subsection was rewritten 2026-08-29.** The original draft described a
+single paste-and-check screen; the app since split that into **Home** (the
+front door: two choices, the privacy claim, the device story) and **Check**
+(the compose screen below). If older context describes a paste field living on
+Home, it predates that split.
 
-**Anatomy:**
-1. App title (small; brand, not chrome)
-2. Paste field — large, auto-focused, min 6 lines visible, `--fs-md` minimum
-3. **SenderField** — one short optional input, label `sender_label`, placeholder
-   `sender_placeholder`. Sits directly under the paste field. Never required,
-   never blocks the primary action (§5.5).
-4. Primary action — "Check this message", full-width, thumb-reachable bottom
-5. Preset chips — "Try an example": one scam, one legit bank SMS
-6. Engine switch — On-device ⇄ Cloud, with a one-line privacy caption
-7. Device panel, collapsed — one summary line, tap to expand
-8. Listen mode entry point
+**Purpose:** the first four seconds. This is what a judge sees on install and
+what decides whether they lean in — the one screen in the app that is allowed,
+even asked, to be the loudest thing Kavach does (§10.1 principle 4 governs the
+*Verdict* screen, not this one; a front door is not a DANGER screen).
 
-**SenderField behaviour:**
-- Optional, and visibly optional — the label says so. A required-looking field
-  the user cannot fill is worse than no field.
-- Live classification as they type: once the input matches a known shape, show a
-  quiet inline hint (`sender_hint_registered` / `sender_hint_personal`). This
-  teaches the DLT distinction *before* the verdict, which is the part most users
-  have never heard of.
-- Presets fill it automatically — the scam preset with a 10-digit number, the
-  legit preset with a real DLT header. This is what makes the contrast land in
-  the demo (§13).
+**Anatomy, current:**
+1. Brand header — shield mark, name, tagline. Triple-tap failsafe (§11 P10).
+2. Two choices — **Check a message** / **Listen to a call** — full-width, one
+   thumb-reachable stack, each with an icon, title and one-line sub.
+3. Engine switch — On-device ⇄ Cloud.
+4. Privacy line — one sentence, lock icon.
+5. Device-telemetry panel, collapsed (§9b).
 
-**Layout rule:** the primary action sits in the bottom third. The whole flow must
-be operable with one thumb on a large phone.
+**The redesign direction (2026-08-29), agreed with the product owner:** the
+structure above stays — nothing here is a security-operations register to fix,
+it's a plain screen that has never been *made confident*. The tokens.css
+thesis already states the goal ("a consumer safety tool, not the thing it
+guards against") — this direction pushes harder on the *consumer* half without
+ever reaching for the *console* half. Three layers, in build order, each one
+independently shippable and independently the first thing cut if time is
+short:
 
-**States:**
+1. **Tactile depth (do first).** The two choice cards and the brand mark get
+   real motion, using tokens that already exist and are barely exercised
+   today: `--shadow-1/2/3`, `--ease-emphasis`, `--dur-*`. A press compresses
+   and settles; a hover (or, on a touch device, the moment a finger lands)
+   blooms the shadow and nudges the Heat border in. This is craft, not a new
+   visual language — it should look like the same screen, taken seriously.
+2. **A brand moment (do second).** One kinetic treatment of the wordmark and
+   tagline on first paint per session — the shield mark draws itself in
+   (stroke-path animation, React Bits pattern per §10.4), the tagline's words
+   settle in with a short stagger. Runs once, then the screen is static; it
+   never loops, so it never competes with the model preload for frame time
+   regardless of §10.4's pause rule. The privacy line gets a small breathing
+   dot in `--safe-accent` next to the lock icon — a visible, ambient
+   "nothing is leaving this phone right now," not just a sentence claiming it.
+3. **Ambient background (stretch — cut first under time pressure, per the
+   existing §10.4 table row for this exact idea).** A slow, compositor-only
+   drifting radial-gradient wash behind the content, in Heat and Graphite at
+   low opacity, `transform`/`opacity` only. Pauses the instant the model
+   preload is actively downloading or an analysis starts, resumes when idle —
+   the same rule §10.4 already applies to the Analyzing state, extended here
+   defensively since Home is where the preload silently runs (D6, §9a).
 
-| State | Behaviour |
-|---|---|
-| Empty | Placeholder copy `paste_placeholder`. Button disabled. |
-| Typing / pasted | Button enabled once ≥10 characters. |
-| Too short | Button disabled, hint `too_short` under the field. |
-| Over 4,000 chars | Accept, note `truncated` (§4). |
-| Cloud selected, offline | Inline note `cloud_unavailable` (§6). |
-| Model still downloading | Everything works; ModelProgress shows as a slim bar under the title. Never block input on the model. |
+**A cinematic first-open beat is deliberately NOT in this list.** It was
+considered — a message bubble arriving, the shield intercepting it, dissolving
+into Home — and set aside as a separate, explicitly optional stretch item
+rather than bundled into the Home redesign itself, because it adds a skip
+control, a reduced-motion fallback, and a "seen this session" flag that the
+three layers above do not need. See §3's Stretch table.
 
-**Pattern:** compose screen with example chips.
+**Non-negotiables, unchanged by any of this:**
+- Every new value is a token addition to `tokens.css`, never a hard-coded
+  colour, radius or duration (§10.2, CLAUDE.md non-negotiable 7).
+- `prefers-reduced-motion` disables all three layers back to the current
+  static screen — this must render identically to today with motion off
+  (§10.4 guardrail 4).
+- `Home.tsx` stays a pure composer: it receives the engine preference and
+  telemetry as props/hooks it already uses, and touches no new detector or
+  device API directly (§10.3 layering rule).
+- No score, no jargon, no register drift — this changes motion and depth, not
+  a single word of copy (§10.7 is untouched).
+
+**Pattern (§10.5):** still closest to a compose/launcher home with a primary
+action pair; Mobbin's onboarding and "bold brand home" patterns are the
+reference for the motion layer specifically, not the copy or layout.
 
 ---
 
-#### Analyzing — inline state on Home, not a route
+#### Check — busy state (`src/screens/Check.tsx`)
 
-**Purpose:** cover 0.5–8 seconds honestly without inviting a second tap.
+**This replaces the old "Analyzing — inline state on Home" subsection**, which
+described analysis running inline on the paste screen before the Home/Check
+split, and described a 0.5–8s wait — both stale. **As of D15 (§16), nothing
+publishes until the LLM path has resolved or failed**, so this state covers
+seconds to just over two minutes honestly, and it is no longer a placeholder.
 
-**Anatomy:** the paste field collapses to a two-line preview; a progress
-indicator and status line replace the button; a "Cancel" text button sits below.
+**Purpose:** make the wait itself the proof of work, since D15 removed the
+early rules-only paint that used to fill this time.
 
-**States:** running · cancelling · (transitions out to Verdict).
+**Anatomy:** the composer is replaced by a live view: an elapsed-time counter,
+the active model tier and adapter name (from `getDeviceTelemetry()`, §9b — no
+new device-reading code, just the existing metrics surfaced here too), and one
+plain-language status line that changes between "reading your message" and,
+rarely, "double-checking one detail" (the reconsideration pass, D15 step 6).
+**Tokens/sec is not shown live** — nothing in the data model counts tokens
+during generation, only after (§9b already documents it as a post-analysis
+number); inventing a live counter would mean fabricating it, which §9b
+forbids as firmly as §4 forbids it for the message. A "Cancel" text button
+sits below and actually aborts (§6 `AbortSignal`).
+
+**States:** briefing (rules running, sub-second, no visible state of its own)
+→ thinking (LLM generating — the view above) → reconsidering (rare; same view,
+status line changes to reflect a second pass, per D15 step 6) → (transitions
+out to Verdict, exactly once).
 
 **Rules:**
-- Cancel is always available and actually aborts (§6 `AbortSignal`).
-- Compositor-only animation (§10.4).
-- If it completes in under 400ms, hold the state for 400ms before transitioning.
-  An instantaneous flash reads as "it did not really do anything" — which, given
-  that the whole pitch is that real work happened on the device, is precisely the
-  wrong impression.
+- Cancel is always available and genuinely aborts every in-flight call,
+  including a reconsideration pass.
+- Compositor-only animation throughout (§10.4).
+- If the whole path resolves in under 400ms (the rules-only fallback path,
+  when no LLM is available), hold the state for 400ms before transitioning —
+  an instant flash reads as "nothing happened," which is the wrong impression
+  on a product whose entire claim is that real work happened.
 
 ---
 
@@ -1899,6 +2006,10 @@ classification, engine selection, timeout, fallback to rules. Dev route
 `/dev/engines` that runs a message through a chosen engine and dumps the raw
 result.
 
+**Amended by D15 (§16):** `prompt.ts` now also renders `RuleBriefing` as
+context, and `cloud.ts` must handle the bounded reconsideration call (one
+retry, same schema, shown its own first answer plus the missed finding).
+
 **Exit criterion:** a real scam SMS pasted at `/dev/engines` returns a valid,
 schema-passing `DetectionResult` with correctly resolved evidence offsets and a
 correct `senderSignal`.
@@ -1961,6 +2072,13 @@ sender and the SenderCard rendering correctly for both.
 **Commit this and be glad it exists.** It is the first build that would survive
 being shown to someone.
 
+**Amended by D15 (§16):** the progressive-publish wiring built here
+(`analyzeProgressive`, the `pending` prop, the two-stage callback in
+`App.tsx`) is superseded. `App.tsx` goes back to a single `analyze()` call and
+navigates once; `Check.tsx`'s `busy` state becomes a real progress view
+instead of a placeholder pulse. Land this alongside P7/P10, not as a separate
+phase.
+
 ---
 
 ### ☐ P7 — LocalDetector, full · ~2.5h · **headline phase**
@@ -1971,6 +2089,12 @@ being shown to someone.
 engine, preload on app open, progress reporting, generation, parse, repair,
 validate. `ModelProgress`. Delete the P2 spike code. **Fill in the §8.1
 measurement table with real numbers from the iQOO.**
+
+**Amended by D15 (§16):** `local.ts` must accept `input.briefing` and thread it
+into the prompt, and support the bounded reconsideration call. The Check
+screen's live progress panel (elapsed time, tokens/sec, model tier, reusing
+`DeviceTelemetryPanel`) is part of this phase's exit bar now, since the full
+wait is always visible with no early paint to hide behind.
 
 **Exit criterion:** an on-device verdict on the phone with the network on; reload
 and confirm the second load reads from IndexedDB rather than re-downloading;
@@ -2022,6 +2146,10 @@ downloads, loads and returns a verdict on the device.
 silent fallback, `engineUsed`/`latencyMs` stamping, `console.info` engine
 logging. The `cloud_unavailable` note. **Triple-tap the app title → pre-baked
 demo verdict**, using a fixture, for insurance against a live failure on stage.
+
+**Amended by D15 (§16):** "hardening" now means implementing the full
+brief → decide → audit → reconsider → backstop sequence end to end, including
+the per-path timeout table in §6, not the older race-and-fallback shape.
 
 **Exit criterion:** with an analysis in flight, kill the network (or force the
 engine to throw) and confirm the user still receives a verdict with no error UI;
@@ -2655,6 +2783,120 @@ The learned state is readable in plain language under "How we checked", with a
 reset. It is described in words ("more sensitive to rushing you") rather than
 numbers, because a multiplier rendered on screen next to a verdict is one
 misreading away from the score §4 forbids.
+
+### 2026-08-29 — D15 · The LLM leads; rules briefs, audits, and reconsiders
+
+D13 made the rules verdict publish first because a 3B model takes tens of
+seconds and nobody should stare at a spinner that long. That reasoning was
+sound on its own terms and produced a real cost nobody had named: **the first
+thing a frightened user sees can be wrong in the reassuring direction.** A
+message worded around the term lists reads as "Looks legitimate" the instant
+rules runs, and only corrects to a warning seconds later, after the user's
+guard is already down. A verdict that is technically superseded a few seconds
+later is still the verdict a scared person acted on.
+
+**Decided.** The deterministic scan still runs first — it is still
+milliseconds, still the thing that makes a verdict possible when nothing else
+is available — but it no longer publishes. It becomes a **briefing**: a
+plain list of which tactics it matched and on what phrases, handed to the LLM
+as context (`RuleBriefing`, §7) before the LLM reads the message itself. The
+user sees exactly one result, produced after the LLM has had its say, not
+before.
+
+Four things distinguish this from "block on the LLM instead of rules," which
+is what §6 specified before D12 and D13 both existed to avoid:
+
+1. **Briefing, not blending-after-the-fact.** The old fusion (D12) ran both
+   engines blind to each other and merged two independent numbers. Now the
+   rules engine's findings reach the LLM *before* it decides, the way a second
+   opinion is more useful when the specialist has seen the referring GP's
+   notes rather than a blank chart.
+2. **Audit.** After the LLM answers, `mergeTactics` (unchanged from D12) adds
+   any tactic the rules engine found with real evidence that the LLM's raw
+   answer omitted. This is the safety net for a model that skims past
+   something a keyword scan cannot miss.
+3. **Reconsideration, bounded to one retry.** If the audit found a real gap —
+   the LLM missed a tactic rules matched on concrete text — the LLM is asked
+   again, shown its own first answer and the specific finding it missed, and
+   given one chance to address it before its answer is taken as final. This
+   fires only on genuine disagreement with concrete evidence, not on every
+   message and not on a vague confidence gap, so the common case (both engines
+   already agree, usually on "nothing here") costs exactly one LLM call, same
+   as before. Worst case is two calls, never a loop.
+4. **Fusion is re-centred on the LLM, not the rules engine.** D12's formula,
+   `fused = rules + 0.85·llm·(1 − rules)`, treated the deterministic score as
+   the floor and the model as an add-on. That was the right shape when rules
+   published first and needed defending against being talked down. Now the
+   model is the one doing the reading, so the base flips:
+
+   ```
+   fused = llm + 0.85 · rules · (1 − llm)
+   ```
+
+   The monotonic guarantee from D12 is mirrored onto the new base, precisely:
+   `fuseConfidence(rules, llm) >= llm`, always — the fused number can never
+   fall below what the LLM itself reported, the exact flip of D12's
+   `>= rules` guarantee. **Read this precisely, because the direction matters:
+   the deterministic engine's confidence number is no longer a hard floor on
+   the fused score the way it was under D12.** A rules confidence of 0.8
+   against an LLM confidence of 0.02 now fuses to roughly 0.69 — caution, not
+   danger — where D12's formula would have held it at danger. That is not an
+   oversight; it is what "the LLM leads" has to mean numerically, and it is
+   why steps 2 and 3 above exist: **the protection against a confidently
+   wrong LLM moves from the confidence formula to the tactic list and the §4
+   override rules.** `mergeTactics` unions rules' findings into the final
+   tactics list regardless of what the LLM's confidence says, audited and
+   reconsidered first — so a rules-found `extraction` tactic with real
+   evidence still forces at least `caution` (the extraction floor) even if
+   the LLM never budges, and three independently-evidenced tactics still
+   force `danger` outright, exactly as before. What changes is that a
+   deterministic engine confident only via *accumulated term weight*, with no
+   single override rule to back it up, can now be softened by a firmly
+   disagreeing LLM — the same trade D12 made in the other direction for the
+   opposite reason. The §4 override rules themselves (extraction floor,
+   three-tactic rule, impersonation mismatch, empty-finding ceiling) are
+   untouched by D15 and remain the backstop no confidence number can override.
+
+**What this does not change.** The rules engine is still invisible (D2) and
+still the only thing that answers when every LLM path fails — that fallback is
+now the *sole* path on which a rules-only result is ever shown, since nothing
+publishes early anymore. `RuleDetector.isAvailable()` still returns `true`
+unconditionally. The `Detector` interface signature is unchanged; the new
+`briefing` field lives on `DetectionInput`, which was designed by D9
+specifically to absorb a future signal without touching any engine's
+signature. Sender classification is still deterministic and still never
+performed by a model (D9).
+
+**Consequences, to be carried out at implementation:**
+
+- `analyzeProgressive`, `AnalysisStage`, `Stage`, and the `pending` prop on
+  `Verdict` are removed. `App.tsx` calls a single `analyze()` and navigates
+  once, with the final result — there is no second, silent repaint to reason
+  about.
+- The Check screen's `busy` state stops being a placeholder pulse. Since the
+  full wait is now always visible (never hidden behind an early paint), it
+  becomes a real progress view — elapsed time, tokens/sec, model tier —
+  reusing the `DeviceTelemetryPanel` machinery from §9 rather than a new
+  component. This keeps D13's actual insight (the wait is proof of real,
+  on-device work, not something to hide) while removing the specific thing
+  D15 exists to remove: a verdict shown before the LLM has weighed in.
+- `prompt.ts`'s `buildUserPrompt` gains a paragraph rendering `RuleBriefing`
+  as plain text context (e.g. "A keyword scan already found possible signs
+  of: extraction — 'OTP', 'UPI ID'. Read the message yourself and confirm,
+  refine, or add to this."). `RuleDetector` ignores the field on its own
+  input.
+- `ENGINE_TIMEOUTS` gains separate first-call and reconsideration-call
+  budgets per engine (table above).
+- `test:fusion` gains cases for the re-centred formula and the
+  reconsideration trigger (fires only when rules found a tactic with real
+  evidence absent from the LLM's raw tactic list; never fires on agreement or
+  on a bare confidence gap). `test:corpus` is unaffected — it exercises rules
+  alone. `test:smoke`/`test:mobile` gain an assertion that the Check screen
+  never renders a verdict before the LLM path has resolved or definitively
+  failed.
+- This lands inside the still-open P7 (LocalDetector) and P10 (orchestrator
+  hardening) phases in §11, and amends the already-shipped P3/P6 work. It is
+  not a new phase number.
 
 ---
 
