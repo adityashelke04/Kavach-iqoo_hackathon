@@ -813,6 +813,12 @@
   color: var(--text-muted);
 }
 
+.working__meta {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

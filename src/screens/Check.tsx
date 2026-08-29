@@ -1,6 +1,8 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { splitSender, classifySender } from '../detector/sender.ts'
 import type { DetectionInput } from '../detector/types.ts'
+import type { AnalysisPhase } from '../detector/orchestrator.ts'
+import { getDeviceTelemetry } from '../device/telemetry.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
 import {
@@ -62,12 +64,14 @@ export function Check({
   onSubmit,
   onBack,
   busy,
+  phase,
 }: {
-  /** The orchestrator runs in App, because the on-device upgrade outlives
-   *  this screen (D13). */
+  /** The orchestrator runs in App and resolves once, with the final result (D15). */
   onSubmit: (input: DetectionInput) => void
   onBack: () => void
   busy: boolean
+  /** null before a phase is known, or once analysis has finished (D15). */
+  phase: AnalysisPhase | null
 }) {
   const [text, setText] = useState('')
   const [sender, setSender] = useState('')
@@ -76,6 +80,37 @@ export function Check({
   const tooShort = text.trim().length < MIN_CHARS
   const truncated = text.length > MAX_CHARS
   const signal = useMemo(() => classifySender(sender), [sender])
+
+  // A live view of the wait, since D15 no longer paints an early verdict to
+  // fill this time — the wait itself is now the whole story (§9b, §10.6).
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const [modelLabel, setModelLabel] = useState<string | null>(null)
+  const startedAt = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!busy) {
+      startedAt.current = null
+      setElapsedMs(0)
+      return
+    }
+
+    startedAt.current = Date.now()
+    void getDeviceTelemetry().then((t) => setModelLabel(`${t.model.label} (${t.tier})`))
+
+    const id = setInterval(() => {
+      if (startedAt.current) setElapsedMs(Date.now() - startedAt.current)
+    }, 250)
+
+    return () => clearInterval(id)
+  }, [busy])
+
+  const elapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
+  const statusLine =
+    phase === 'reconsidering'
+      ? copy.analyzing_reconsidering
+      : phase === 'thinking'
+        ? copy.analyzing_thinking
+        : copy.working
 
   /** Pull a sender out of the pasted blob if one is in there (§5.5). */
   const ingest = useCallback((raw: string) => {
@@ -143,7 +178,11 @@ export function Check({
         {busy ? (
           <div className="working" role="status" aria-live="polite">
             <div className="working__pulse" aria-hidden="true" />
-            <p className="working__text">{copy.working}</p>
+            <p className="working__text">{statusLine}</p>
+            <p className="working__meta">
+              {elapsedLabel}
+              {modelLabel ? ` · ${modelLabel}` : ''}
+            </p>
           </div>
         ) : (
           <>

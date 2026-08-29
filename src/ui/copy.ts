@@ -27,6 +27,8 @@ export const copy = {
   truncated: 'Long message — we checked the first part',
   try_example: 'Or try an example',
   working: 'Reading the message…',
+  analyzing_thinking: 'Reading your message on this phone…',
+  analyzing_reconsidering: 'Double-checking one detail…',
 
   // --- Verdict -------------------------------------------------------------
   verdict_danger_head: 'This is a scam',
@@ -35,8 +37,6 @@ export const copy = {
   verdict_caution_sub: 'Check before you act.',
   verdict_safe_head: 'Looks legitimate',
   verdict_safe_sub: 'Nothing manipulative found.',
-
-  upgrading: 'Taking a closer look on your phone…',
 
   // Adaptive weighting (D14). Phrased as a question about this answer, not as
   // "train the AI" — the person is telling us we got it wrong, not volunteering
