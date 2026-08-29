@@ -79,13 +79,61 @@ i" means UPI, "k y c" means KYC. Judge the conversation, not the spelling. Copy
 evidence phrases exactly as they appear in the transcript, errors included.
 `.trim()
 
+export interface RuleBriefing {
+  tactics: { name: string; matchedPhrases: string[] }[]
+}
+
+export interface ReconsiderationPrompt {
+  priorExplanation: string
+  missingTactic: { name: string; matchedPhrases: string[] }
+}
+
 export interface PromptContext {
   text: string
   channel: 'text' | 'voice'
   senderFact: string | null
+  briefing?: RuleBriefing
+  reconsider?: ReconsiderationPrompt
 }
 
-export function buildUserPrompt({ text, channel, senderFact }: PromptContext): string {
+/**
+ * Render what a deterministic keyword scan already found, as context for the
+ * model — never as a verdict, and never with a number (D15). Kept in sync by
+ * hand with src/detector/prompt.ts's identical function — this file cannot
+ * import from src/ (see the header comment above on Vercel bundling).
+ */
+export function renderBriefing(briefing: RuleBriefing): string {
+  const lines = briefing.tactics.map(
+    (t) => `${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+  )
+  return [
+    'A separate keyword scan already ran on this message and found possible signs of:',
+    lines.join('; '),
+    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or add to this. Check specifically for anything it would have missed.',
+  ].join('\n')
+}
+
+/**
+ * Render the one bounded second-look prompt an engine sees when the audit
+ * step found a concrete gap in its first answer (D15). Kept in sync by hand
+ * with src/detector/prompt.ts's identical function.
+ */
+export function renderReconsideration(reconsider: ReconsiderationPrompt): string {
+  const { priorExplanation, missingTactic } = reconsider
+  return [
+    `You already answered this once. Your explanation was: "${priorExplanation}"`,
+    `A keyword scan independently found a possible ${missingTactic.name} signal your answer did not address, matching: ${missingTactic.matchedPhrases.map((p) => `"${p}"`).join(', ')}.`,
+    'Look at the message again. If this changes your reading, update your tactics and confidence to reflect it. If you still disagree, keep your answer, but make sure "explanation" says why this specific point does not change your reading.',
+  ].join('\n')
+}
+
+export function buildUserPrompt({
+  text,
+  channel,
+  senderFact,
+  briefing,
+  reconsider,
+}: PromptContext): string {
   const parts: string[] = []
 
   if (channel === 'voice') parts.push(VOICE_NOTE)
@@ -94,6 +142,14 @@ export function buildUserPrompt({ text, channel, senderFact }: PromptContext): s
     parts.push(`Established fact about the sender: ${senderFact}`)
   } else {
     parts.push('The sender is unknown. Do not speculate about it.')
+  }
+
+  if (briefing && briefing.tactics.length > 0) {
+    parts.push(renderBriefing(briefing))
+  }
+
+  if (reconsider) {
+    parts.push(renderReconsideration(reconsider))
   }
 
   parts.push(
@@ -144,6 +200,8 @@ export default async function handler(req: IncomingLike, res: ResponseLike): Pro
     text?: unknown
     sender?: unknown
     channel?: unknown
+    briefing?: unknown
+    reconsider?: unknown
   }
 
   const text = typeof payloadBody.text === 'string' ? payloadBody.text.trim() : ''
@@ -161,6 +219,19 @@ export default async function handler(req: IncomingLike, res: ResponseLike): Pro
     typeof payloadBody.sender === 'string' && payloadBody.sender.trim() !== ''
       ? payloadBody.sender.trim().slice(0, 200)
       : null
+
+  // Named, typed, bounded fields only — never a raw messages array. Extending
+  // this to two possible turns still keeps the endpoint doing exactly one
+  // narrow job (D12), not acting as a general-purpose LLM proxy.
+  const briefing =
+    payloadBody.briefing && typeof payloadBody.briefing === 'object'
+      ? (payloadBody.briefing as RuleBriefing)
+      : undefined
+
+  const reconsider =
+    payloadBody.reconsider && typeof payloadBody.reconsider === 'object'
+      ? (payloadBody.reconsider as ReconsiderationPrompt)
+      : undefined
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
@@ -180,7 +251,16 @@ export default async function handler(req: IncomingLike, res: ResponseLike): Pro
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserPrompt({ text, channel, senderFact }) },
+          {
+            role: 'user',
+            content: buildUserPrompt({
+              text,
+              channel,
+              senderFact,
+              ...(briefing ? { briefing } : {}),
+              ...(reconsider ? { reconsider } : {}),
+            }),
+          },
         ],
       }),
     })

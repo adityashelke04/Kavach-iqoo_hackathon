@@ -54,6 +54,8 @@ export const cloudDetector: Detector = {
         text: input.text,
         channel: input.channel ?? 'text',
         ...(fact ? { sender: fact } : {}),
+        ...(input.briefing ? { briefing: input.briefing } : {}),
+        ...(input.reconsider ? { reconsider: input.reconsider } : {}),
       }),
     })
 
