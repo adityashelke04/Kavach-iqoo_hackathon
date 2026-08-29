@@ -401,7 +401,7 @@ export function HowWeChecked({ result }: { result: DetectionResult }) {
               ? copy.how_engine_cloud
               : result.engineUsed === 'local'
                 ? `${copy.how_engine_local} (${telemetry?.model.label ?? 'On-Device WebGPU AI'})`
-                : `${copy.how_engine_local} (Deterministic engine)`}
+                : copy.how_engine_local}
           </span>
         </div>
         {telemetry?.adapterName && (

@@ -142,6 +142,17 @@ const allHtml = Object.values(r.verdicts).map((v) => v.html).join('') + r.home +
 if (/\d+%/.test(allHtml)) fail('a percentage reached the UI — §4 violation')
 else pass('no score or percentage in any rendered screen')
 
+// --- the rules-only fallback never names itself or claims a specific engine
+// ran (D2). All three fixtures above go through analyzeWithRules directly, so
+// engineUsed is 'rules' for each — this is exactly the path that silently
+// runs when a user's chosen engine (cloud or local) is unavailable, and it
+// must never look like a WebGPU/on-device LLM run actually happened.
+if (allHtml.includes('Deterministic engine')) {
+  fail('the rules-fallback "How we checked" label names the engine (D2 violation)')
+} else {
+  pass('the rules-fallback label never names an engine')
+}
+
 // --- sender auto-detect ----------------------------------------------------
 if (r.split.sender === 'VM-SBIINB' && !r.split.body.includes('From:')) {
   pass('sender auto-detected and lifted out of the body')
