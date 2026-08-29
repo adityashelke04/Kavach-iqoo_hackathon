@@ -1,0 +1,15 @@
+# Local browser profiles used by the test harnesses. The on-device one holds
+# cached model weights and runs to several gigabytes, which the CLI will
+# otherwise try to upload — `vercel --prod` fails with EBUSY on Chrome's own
+# open file handles long before it gets that far.
+.chrome-llm-profile
+.chrome-cdp-profile
+
+# Regenerable, and not part of the deployment.
+screenshots
+node_modules
+.git
+
+# Agent tooling copied in by other sessions, not project source.
+.agents
+.claude
