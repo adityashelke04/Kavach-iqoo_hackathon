@@ -2327,17 +2327,24 @@ should pick `standard` instead — which is the reading step 2 asks you to recor
 3. **Reload `/dev/llm` and load the same tier again.** It must come from cache
    rather than re-downloading. That is P7's second exit criterion, and it is
    also what makes step 6 possible.
-4. **Open `/`, run one scam and one legitimate message** with On-device
+4. **Open `/dev/local` and press Run.** Eight fixtures through the real
+   `localDetector` — the shipped path, not the spike. It reports contract
+   failures, false positives, unresolved evidence phrases and per-message
+   latency, on this phone. The four legitimate fixtures are the ones that
+   matter: a model that flags the real SBI debit alert is worse than no model.
+   This is the same page `npm run test:local` drives on a laptop, and D18
+   records what it found there.
+5. **Open `/`, run one scam and one legitimate message** with On-device
    selected. P7's first exit criterion.
-5. **Install it.** Chrome menu → *Add to home screen*, or take the offer on
+6. **Install it.** Chrome menu → *Add to home screen*, or take the offer on
    Home. Confirm the launcher icon is the shield on its dark ground and not a
    mark on a white disc — if it is a white disc, the maskable icon did not
    ship.
-6. **Airplane mode on. Launch from the home-screen icon. Paste a scam.** A
+7. **Airplane mode on. Launch from the home-screen icon. Paste a scam.** A
    correct verdict here is P8's exit criterion and §13 beat 4 — the whole
    pitch, in one action.
 
-Steps 1–4 tick P2 and P7. Steps 5–6 tick P8. Fill in §8.1's table from step 2
+Steps 1–5 tick P2 and P7. Steps 6–7 tick P8. Fill in §8.1's table from step 2
 before ticking anything.
 
 ### Phase completion log
@@ -3204,6 +3211,86 @@ would invite the reader to negotiate with it.
 §10.7, and `npm run test:predict` to §12. Adding a playbook is cheap; inventing
 one is a lie told to somebody who is about to act on it, so every entry in
 `playbooks.ts` must be an arc that actually runs.
+
+---
+
+### 2026-08-30 — D18 · What running the on-device engine actually found
+
+**D18 · The on-device path had five defects, and none of them were visible from
+reading the code.**
+
+P7 was marked "built, UNVERIFIED" for a day. `npm run test:local` — a new gate
+that drives `/dev/local` in a real Chrome with a real GPU and runs eight
+fixtures through `localDetector` — was written to change that. It found the
+following, in this order, each one hidden behind the one before it.
+
+**1 · The `low` tier could not load at all.** WebLLM's prebuilt record for
+Gemma 3 1B ships `context_window_size: 4096` *and* `sliding_window_size: 512`,
+and the runtime refuses both: *"Only one of context_window_size and
+sliding_window_size can be positive."* Every fixture failed before a token was
+generated. Fixed with `ModelSpec.overrides`, which patches WebLLM's own record
+for a model — keeping the 4096 window and disabling the sliding one, because
+the shared system prompt (§8.4) is most of a thousand tokens and could not fit
+in 512. **This is the tier a cheap Android falls back to.** §1's closing line
+promises exactly those users; the demo phone never selects this tier, which is
+why it was broken and nobody noticed.
+
+**2 · A failed load was retried on every message, re-downloading each time.**
+`getEngine` cleared `enginePromise` on failure so a later attempt could try
+again. Reasonable in isolation; catastrophic in a run, because each retry is a
+fresh several-hundred-megabyte download. Eight fixtures exhausted the browser's
+storage quota, and every message after the first reported `Quota exceeded`
+instead of the real error — **the bug above was invisible until this one was
+fixed.** Failures are now remembered per model id and cleared by `unloadEngine`,
+so a genuine retry is still possible but a storm is not.
+
+**3 · `detect()` silently overrode a deliberately chosen tier.** `detect` calls
+`getEngine()` with no argument, which re-measured the device every time. Any
+tier chosen explicitly — the Settings override D7 promises, or the dev harness —
+was discarded on the next message, unloading the model that had just been loaded
+and downloading the automatic choice instead. Now an explicit tier is
+remembered (`setPreferredTier`), which is also what makes D7's promise
+implementable at all.
+
+**4 · The Check screen claimed to be reading the message while downloading the
+model.** `analyzing_thinking` — "Reading your message on this phone…" — was
+shown for the entire first load, which is minutes on a phone that has never
+run a model. Observed on the deployed build: forty seconds of that line before
+a single token existed. This is the same class of dishonesty §9c forbids about
+device metrics and §4 forbids about the message, and it was in the most-watched
+screen in the demo. The screen now subscribes to `onModelProgress` and shows
+"Getting the AI ready on your phone…" with a progress bar and the one-time
+note, switching to the reading line only when generation actually starts.
+
+*A bar, not a percentage:* §4 permits numbers about the phone, but the mobile
+gate forbids any `%` in the DOM outright, and a bar reads faster regardless.
+
+**5 · A cold first analysis timed out before the download finished.**
+`ENGINE_TIMEOUTS.local.first` was 120s, and `detect()` awaits the model load
+*inside* that budget. A first run on conference wifi would be abandoned with the
+download nearly complete, and the user would silently receive the rules answer —
+losing the on-device claim, which is the whole pitch, to a timeout intended for
+generation. A cold call now gets `LOCAL_COLD_LOAD_TIMEOUT_MS`; warm calls and
+every cloud call are unchanged. This is not a licence to hang: the wait is
+now shown honestly, and Cancel genuinely aborts.
+
+**Also added, unprompted by a failure:** the engine requests persistent storage
+before downloading. Best-effort storage is evictable, so the offline beat
+(§13 beat 4) otherwise depends on the browser not having reclaimed the weights
+overnight — and Chrome grants a persistent origin a materially larger quota,
+which is the difference between a completed download and defect 2's symptom.
+
+**What `test:local` is, and is not.** It proves the shipped path — prompt, JSON
+contract, evidence resolution, verdict mapping — survives a real small model,
+and it applies §12's false-positive rule to the LLM for the first time (it had
+only ever been measured against rules). It proves **nothing** about the iQOO: a
+laptop reports a `maxStorageBufferBindingSize` in the gigabytes where Chrome on
+Android commonly caps it at 128 MiB, which is the entire reason §8.1 picks a
+tier by measurement. It is deliberately **not** in the default gate run — it
+downloads real weights and takes minutes.
+
+`/dev/local` is built to be opened by hand on the phone for the same reason.
+That is now step 4 of §11's on-device session.
 
 ---
 

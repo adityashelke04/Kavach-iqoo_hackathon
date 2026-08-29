@@ -3,6 +3,7 @@ import { splitSender, classifySender } from '../detector/sender.ts'
 import type { DetectionInput } from '../detector/types.ts'
 import type { AnalysisPhase } from '../detector/orchestrator.ts'
 import { getDeviceTelemetry } from '../device/telemetry.ts'
+import { onModelProgress } from '../detector/local.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
 import {
@@ -87,6 +88,16 @@ export function Check({
   const [modelLabel, setModelLabel] = useState<string | null>(null)
   const startedAt = useRef<number | null>(null)
 
+  /**
+   * Whether the model is still arriving, and how far along.
+   *
+   * Without this the screen claimed "Reading your message on this phone…" for
+   * the entire first download — minutes, on a phone that has never loaded a
+   * model — while the phone was doing nothing of the kind. Observed on the
+   * deployed build: forty seconds of that line before a single token existed.
+   */
+  const [loading, setLoading] = useState<{ fraction: number | null } | null>(null)
+
   useEffect(() => {
     if (!busy) {
       startedAt.current = null
@@ -104,9 +115,18 @@ export function Check({
     return () => clearInterval(id)
   }, [busy])
 
+  // Subscribed for the life of the screen, not just while busy: the preload
+  // starts on app open (D6), so the model may already be arriving before the
+  // user has finished pasting.
+  useEffect(
+    () => onModelProgress((p) => setLoading(p.done ? null : { fraction: p.fraction })),
+    [],
+  )
+
   const elapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
-  const statusLine =
-    phase === 'reconsidering'
+  const statusLine = loading
+    ? copy.analyzing_downloading
+    : phase === 'reconsidering'
       ? copy.analyzing_reconsidering
       : phase === 'thinking'
         ? copy.analyzing_thinking
@@ -187,6 +207,38 @@ export function Check({
               {elapsedLabel}
               {modelLabel ? ` · ${modelLabel}` : ''}
             </p>
+
+            {/* A bar, never a percentage: §4 permits numbers about the phone,
+                but the mobile gate forbids any "%" in the DOM outright, and a
+                bar reads faster than a figure anyway. */}
+            {loading && (
+              <>
+                <div
+                  className="working__bar"
+                  role="progressbar"
+                  aria-label={copy.analyzing_downloading}
+                  {...(loading.fraction !== null
+                    ? {
+                        'aria-valuemin': 0,
+                        'aria-valuemax': 1,
+                        'aria-valuenow': loading.fraction,
+                      }
+                    : {})}
+                >
+                  <div
+                    className={`working__bar-fill${
+                      loading.fraction === null ? ' working__bar-fill--indeterminate' : ''
+                    }`}
+                    style={
+                      loading.fraction !== null
+                        ? { transform: `scaleX(${Math.max(0.02, Math.min(1, loading.fraction))})` }
+                        : undefined
+                    }
+                  />
+                </div>
+                <p className="working__note">{copy.analyzing_downloading_note}</p>
+              </>
+            )}
           </div>
         ) : (
           <>

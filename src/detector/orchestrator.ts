@@ -8,7 +8,7 @@ import { analyzeWithRules, toBriefing } from './rules.ts'
 import { classifySender } from './sender.ts'
 import { validateResult } from './validate.ts'
 import { cloudDetector } from './cloud.ts'
-import { localDetector } from './local.ts'
+import { localDetector, isModelLoaded } from './local.ts'
 import { fuse, findAuditGap } from './fuse.ts'
 
 /**
@@ -43,6 +43,22 @@ export const ENGINE_TIMEOUTS = {
   local: { first: 120_000, reconsider: 60_000 },
   cloud: { first: 15_000, reconsider: 15_000 },
 } as const
+
+/**
+ * The budget for the first on-device call when the weights are not yet resident.
+ *
+ * `localDetector.detect` awaits the model load inside its own timeout, so a
+ * cold call spends most of its budget downloading — several hundred megabytes,
+ * which on a phone on conference wifi is minutes, not seconds. At the normal
+ * 120s budget that call is abandoned while the download is nearly finished, and
+ * the user silently gets the rules answer instead: the on-device claim, which
+ * is the entire pitch, lost to a timeout meant for generation.
+ *
+ * So a cold call gets a much larger budget. This is not a licence to hang: the
+ * Check screen shows the download honestly with a progress bar (§10.6), and
+ * Cancel is always available and genuinely aborts.
+ */
+export const LOCAL_COLD_LOAD_TIMEOUT_MS = 900_000
 
 const LLM_ENGINES: Record<Exclude<EnginePreference, 'none'>, Detector> = {
   local: localDetector,
@@ -115,11 +131,17 @@ export async function analyze(
   const budgets = ENGINE_TIMEOUTS[preference]
   const briefing = toBriefing(rules)
 
+  // A cold on-device call is mostly download, not inference — budget for that
+  // rather than abandoning a nearly-complete one. Warm calls, and every cloud
+  // call, use the normal budget.
+  const firstBudget =
+    preference === 'local' && !isModelLoaded() ? LOCAL_COLD_LOAD_TIMEOUT_MS : budgets.first
+
   onPhase?.('thinking')
   let llm = await runOnce(
     engine,
     { ...input, ...(briefing ? { briefing } : {}) },
-    budgets.first,
+    firstBudget,
     signal,
   )
 

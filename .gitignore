@@ -23,3 +23,6 @@ skills-lock.json
 
 # regenerable with: npm run test:mobile
 screenshots/
+
+# on-device model cache used by scripts/test-local.mjs
+.chrome-llm-profile/

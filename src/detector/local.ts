@@ -16,11 +16,14 @@ import { MODELS, pickTier, type Tier } from './models.ts'
  * 1. **The engine is a singleton.** Creating a second MLCEngine while one is
  *    loaded will try to allocate the weights twice and take the tab down on a
  *    phone. `getEngine` is the only construction path.
- * 2. **It is slow, and that is designed for.** A 3B model on a phone produces
- *    a couple of hundred JSON tokens in tens of seconds. Nothing waits on it:
- *    the orchestrator shows the rules verdict immediately and upgrades in
- *    place when this returns (D13). If that ever changes, this engine becomes
- *    a 30-second spinner in front of a frightened person.
+ * 2. **It is slow, and since D15 the user waits for it.** A 3B model on a
+ *    phone produces a couple of hundred JSON tokens in tens of seconds, and
+ *    D15 removed the early rules-only paint that used to fill that time — so
+ *    this engine IS the wait the Check screen shows. That is deliberate (the
+ *    wait is the proof of work, §10.6), but it means every extra second here
+ *    is a second a frightened person spends looking at a spinner. An earlier
+ *    version of this comment described D13's progressive upgrade, which no
+ *    longer exists; do not design against it.
  */
 
 /** Progress while the model downloads and initialises. */
@@ -51,7 +54,41 @@ interface MlcEngine {
 
 let enginePromise: Promise<MlcEngine> | null = null
 let loadedModelId: string | null = null
+/** True only once the weights are resident and generation can start. */
+let engineReady = false
 const listeners = new Set<ProgressListener>()
+
+/**
+ * A tier chosen deliberately, overriding what this device would pick for itself.
+ *
+ * D7 promises the user can override the tier. Without this, `detect()` — which
+ * has no tier to pass — would call `resolveTier()` every time, disagree with
+ * whatever was deliberately loaded, and unload it to fetch the automatic choice
+ * instead. On a phone that is a second several-hundred-megabyte download in the
+ * middle of a session, triggered by the user having expressed a preference.
+ *
+ * Set by `getEngine(tier)` and `setPreferredTier`. Deliberately survives
+ * `unloadEngine`: unloading frees GPU memory, it does not un-choose a tier.
+ */
+let preferredTier: Tier | null = null
+
+/**
+ * Models that have already failed to load, by id.
+ *
+ * A load failure is nearly always permanent for this device — a bad config, a
+ * buffer cap the weights do not fit under, no WebGPU. Retrying it on every
+ * message costs a full re-download each time.
+ */
+const failedModels = new Map<string, Error>()
+
+/** Pin the tier for every later load. `null` returns to measuring the device. */
+export function setPreferredTier(tier: Tier | null): void {
+  preferredTier = tier
+}
+
+export function getPreferredTier(): Tier | null {
+  return preferredTier
+}
 
 export function onModelProgress(fn: ProgressListener): () => void {
   listeners.add(fn)
@@ -121,7 +158,12 @@ export async function resolveTier(): Promise<Tier> {
  * the download attaches to the same load rather than starting another.
  */
 export async function getEngine(tier?: Tier): Promise<MlcEngine> {
-  const chosen = MODELS[tier ?? (await resolveTier())]
+  // An explicit tier is a decision, so it sticks: the next `detect()` — which
+  // has no tier to pass — must agree with it rather than re-measuring the
+  // device and unloading the model that was just deliberately loaded.
+  if (tier) preferredTier = tier
+
+  const chosen = MODELS[tier ?? preferredTier ?? (await resolveTier())]
 
   if (enginePromise && loadedModelId === chosen.modelId) return enginePromise
 
@@ -135,12 +177,65 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
     }
   }
 
+  // A model that has already failed to load on this device will fail again for
+  // the same reason. Without this, every `detect()` retries the whole load —
+  // which on a phone means re-downloading hundreds of megabytes per message,
+  // and a run of eight messages exhausting the storage quota. That is exactly
+  // what `test:local` produced before this check existed: the real error was a
+  // bad model config, and every message after the first reported "Quota
+  // exceeded" instead, hiding it.
+  const priorFailure = failedModels.get(chosen.modelId)
+  if (priorFailure) throw priorFailure
+
   loadedModelId = chosen.modelId
+  engineReady = false
   enginePromise = (async () => {
+    // Ask for persistent storage BEFORE downloading several hundred megabytes.
+    //
+    // Two reasons, and the second is the demo. Best-effort storage is subject
+    // to eviction under pressure, so the offline beat (§13 beat 4) would depend
+    // on the browser not having quietly reclaimed the weights overnight. And
+    // Chrome grants a materially larger quota to a persistent origin — a
+    // partial download that dies at "Quota exceeded" is what this looks like
+    // otherwise, which is how `test:local` first presented a completely
+    // unrelated config bug.
+    //
+    // Chrome decides by engagement heuristic and may simply say no. That is
+    // survivable, so this never blocks or throws.
+    try {
+      await navigator.storage?.persist?.()
+    } catch {
+      /* not supported, or refused — carry on with best-effort storage */
+    }
+
     const webllm = await import('@mlc-ai/web-llm')
     emit({ fraction: 0, text: `Preparing ${chosen.label}…`, done: false })
 
+    // Fail loudly and early on a model id this build of WebLLM does not carry,
+    // rather than with whatever the runtime says several layers down.
+    const known = webllm.prebuiltAppConfig.model_list.some(
+      (m) => m.model_id === chosen.modelId,
+    )
+    if (!known) {
+      throw new Error(`${chosen.modelId} is not in this WebLLM build`)
+    }
+
+    // Apply our repairs to WebLLM's own record for this model (see
+    // `ModelSpec.overrides`). Everything else in the prebuilt config is left
+    // exactly as shipped.
+    const appConfig = chosen.overrides
+      ? {
+          ...webllm.prebuiltAppConfig,
+          model_list: webllm.prebuiltAppConfig.model_list.map((m) =>
+            m.model_id === chosen.modelId
+              ? { ...m, overrides: { ...m.overrides, ...chosen.overrides } }
+              : m,
+          ),
+        }
+      : webllm.prebuiltAppConfig
+
     const engine = await webllm.CreateMLCEngine(chosen.modelId, {
+      appConfig,
       initProgressCallback: (r) => {
         emit({
           fraction: typeof r.progress === 'number' ? r.progress : null,
@@ -150,6 +245,7 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
       },
     })
 
+    engineReady = true
     emit({ fraction: 1, text: `${chosen.label} ready`, done: true })
     return engine as unknown as MlcEngine
   })()
@@ -157,11 +253,31 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
   try {
     return await enginePromise
   } catch (err) {
-    // A failed load must not poison every later attempt.
     enginePromise = null
     loadedModelId = null
+    engineReady = false
+    // Remembered so the next caller fails in milliseconds instead of
+    // re-downloading. `unloadEngine()` clears it, which is how a user-triggered
+    // retry gets a genuinely fresh attempt.
+    failedModels.set(chosen.modelId, err as Error)
+    emit({ fraction: null, text: `${chosen.label} could not load`, done: true })
     throw err
   }
+}
+
+/**
+ * Whether the weights are already resident, so a `detect()` would go straight
+ * to generating.
+ *
+ * The orchestrator budgets a cold call differently from a warm one (§6): a
+ * first run legitimately spends minutes downloading before it can generate a
+ * token, and timing that out would throw away a nearly-complete download along
+ * with the on-device claim it exists to support.
+ */
+export function isModelLoaded(): boolean {
+  // Deliberately not `enginePromise !== null`: that is also true for the whole
+  // duration of a download, which is precisely the case this has to separate.
+  return engineReady
 }
 
 /** Cleanly unload the active engine and release WebGPU memory. */
@@ -176,6 +292,10 @@ export async function unloadEngine(): Promise<void> {
   }
   enginePromise = null
   loadedModelId = null
+  engineReady = false
+  // An explicit unload is the user asking for a clean slate, so a model that
+  // failed before is allowed one more genuine attempt.
+  failedModels.clear()
   emit({ fraction: null, text: 'Engine unloaded', done: true })
 }
 

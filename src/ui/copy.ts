@@ -29,6 +29,12 @@ export const copy = {
   working: 'Reading the message…',
   analyzing_thinking: 'Reading your message on this phone…',
   analyzing_reconsidering: 'Double-checking one detail…',
+  // Shown while the model itself is still arriving. Saying "reading your
+  // message" during a several-hundred-megabyte download is a straightforwardly
+  // false claim about what the phone is doing, and §9c holds this app to the
+  // same honesty about its own work that §4 holds it to about the message.
+  analyzing_downloading: 'Getting the AI ready on your phone…',
+  analyzing_downloading_note: 'One time only. After this it works with no signal.',
 
   // --- Verdict -------------------------------------------------------------
   verdict_danger_head: 'This is a scam',

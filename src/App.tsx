@@ -8,6 +8,7 @@ import { Listen } from './screens/Listen'
 import { Probe } from './dev/Probe'
 import { Engines } from './dev/Engines'
 import { Llm } from './dev/Llm'
+import { Local } from './dev/Local'
 import { analyze, type AnalysisPhase, type EnginePreference } from './detector/orchestrator'
 import { analyzeWithRules } from './detector/rules'
 import { localSupported, preloadModel } from './detector/local'
@@ -82,6 +83,7 @@ export default function App() {
   if (path === '/dev/probe') return <Probe />
   if (path === '/dev/engines') return <Engines />
   if (path === '/dev/llm') return <Llm />
+  if (path === '/dev/local') return <Local />
 
   if (path === '/listen')
     return <Listen onBack={() => navigate('/')} enginePreference={enginePreference} />

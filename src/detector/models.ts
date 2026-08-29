@@ -35,6 +35,14 @@ export interface ModelSpec {
   vramMB: number
   /** Why this one, in one line. */
   why: string
+  /**
+   * Fixes applied to WebLLM's own prebuilt record for this model.
+   *
+   * Not tuning — repairs. A shipped `prebuiltAppConfig` entry can be internally
+   * inconsistent, in which case the model does not load at all and the error
+   * arrives from deep inside the runtime. See the Gemma 3 note below.
+   */
+  overrides?: Record<string, number>
 }
 
 /**
@@ -50,6 +58,25 @@ export const MODELS: Record<Tier, ModelSpec> = {
     params: '1B',
     vramMB: 711,
     why: 'Smallest model that still follows a JSON schema reliably. Emergency tier for a device with a tight buffer cap.',
+    /**
+     * WITHOUT THIS THE LOW TIER DOES NOT LOAD AT ALL.
+     *
+     * WebLLM's prebuilt record for Gemma 3 1B ships `context_window_size: 4096`
+     * *and* `sliding_window_size: 512`, and the runtime rejects having both
+     * positive: "Only one of context_window_size and sliding_window_size can be
+     * positive." Found by `npm run test:local` — every fixture failed before
+     * generation, on every tier-`low` device.
+     *
+     * We keep the 4096 window and disable the sliding one, rather than the
+     * reverse: the shared system prompt (§8.4) is most of a thousand tokens on
+     * its own, so a 512-token window could not hold the instructions, let alone
+     * the message being analysed.
+     *
+     * This is the tier a cheap Android falls back to — "we're building it for
+     * everyone else" (§1) — so it is not a tier that can be left broken because
+     * the demo phone never selects it.
+     */
+    overrides: { sliding_window_size: -1 },
   },
   standard: {
     tier: 'standard',

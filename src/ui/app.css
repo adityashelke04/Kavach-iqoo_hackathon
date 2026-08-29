@@ -2172,3 +2172,64 @@
   line-height: var(--lh-normal);
   color: var(--text);
 }
+
+/* --- model download progress on the Check screen (§10.6, §9c) -------------
+   Shown only while the model itself is still arriving. A bar, never a
+   percentage: the mobile gate forbids any "%" in the DOM, and §4's allowance
+   for numbers about the phone does not make one necessary here. */
+.working__bar {
+  width: min(240px, 70%);
+  height: 4px;
+  margin-top: var(--sp-4);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.working__bar-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--heat);
+  transform-origin: left center;
+  transform: scaleX(0.02);
+  /* Compositor-only, per §10.4 — this runs while the phone is saturating its
+     network and decompressing weights, and must not cost a layout. */
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+/* Some runtimes report no fraction at all. A travelling sliver is honest about
+   that; a bar frozen at 2% would read as a stall. */
+.working__bar-fill--indeterminate {
+  width: 40%;
+  transform: none;
+  animation: working-slide 1.4s var(--ease-out) infinite;
+}
+
+@keyframes working-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+.working__note {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-faint);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working__bar-fill {
+    transition: none;
+  }
+  .working__bar-fill--indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

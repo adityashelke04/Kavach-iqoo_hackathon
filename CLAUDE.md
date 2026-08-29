@@ -71,6 +71,13 @@ npm run test:offline  # PWA: manifest installable, every icon really served,
                       # cut still reaches a correct verdict (P8)
 npm run icons         # regenerate public/icons from ShieldLogo. Only needed
                       # when the mark or the ground colour changes.
+
+# NOT part of a normal gate run — downloads real model weights, takes minutes:
+npm run test:local    # drives /dev/local in a real Chrome with a real GPU and
+                      # runs the shipped localDetector path. Proves the JSON
+                      # contract and the false-positive gate hold on-device.
+                      # Proves nothing about the iQOO — open /dev/local on the
+                      # phone for that (SPEC.md §11). See D18.
 npm run test:mobile   # renders at 412x915 in Chrome; asserts no sideways
                       # scroll, no tap target under 44px, no percentage in the
                       # DOM, and drives Check -> Verdict for scam and legit
