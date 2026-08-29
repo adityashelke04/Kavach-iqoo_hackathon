@@ -547,7 +547,7 @@ Rewriting changes character offsets, and evidence offsets are what drive
 highlighting (§7). A normalisation pass would silently corrupt every highlight
 in Listen mode.
 
-Instead the patterns themselves match both forms: `o[\s.]?t[\s.]?p`
+Instead the patterns themselves match both forms: `\bo[\s.]?t[\s.]?p\b`
 matches `OTP`, `o t p` and `o.t.p` alike, and offsets stay exact. Same for CVV,
 KYC and UPI.
 
@@ -2446,13 +2446,13 @@ framing that never appears in writing.
 
 Measured before the change: a textbook vishing transcript ("...just read out the
 o t p to me for verification") scored 0.63 and returned `caution` instead of
-`danger`, purely because `otp` does not match `o t p`.
+`danger`, purely because `\botp\b` does not match `o t p`.
 
 Two implementation choices worth preserving:
 
 - **Acronyms are matched in both forms by one pattern, not normalised.**
   Rewriting the transcript would shift character offsets and corrupt every
-  highlight (§7). `o[\s.]?t[\s.]?p` costs nothing and keeps offsets exact.
+  highlight (§7). `\bo[\s.]?t[\s.]?p\b` costs nothing and keeps offsets exact.
 - **Voice terms are additive, not a replacement.** They are merged only when
   `channel === 'voice'`, so call-centre patterns cannot create false positives
   in the text path.
