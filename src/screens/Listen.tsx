@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { analyze } from '../detector/orchestrator.ts'
+import { analyze, type EnginePreference } from '../detector/orchestrator.ts'
 import { analyzeWithRules } from '../detector/rules.ts'
 import type { DetectionResult, Tactic } from '../detector/types.ts'
 import { buildSegments, resolveAllEvidence } from '../detector/evidence.ts'
@@ -273,7 +273,13 @@ function Interrupt({
    Screen
    ========================================================================== */
 
-export function Listen({ onBack }: { onBack: () => void }) {
+export function Listen({
+  onBack,
+  enginePreference = 'local',
+}: {
+  onBack: () => void
+  enginePreference?: EnginePreference
+}) {
   const [phase, setPhase] = useState<Phase>(() =>
     getSpeechCtor() ? 'priming' : 'unsupported',
   )
@@ -406,7 +412,7 @@ export function Listen({ onBack }: { onBack: () => void }) {
       setAnalyzing(true)
       try {
         if (deep) {
-          const res = await analyze({ text: buffer, channel: 'voice' }, 'local')
+          const res = await analyze({ text: buffer, channel: 'voice' }, enginePreference)
           setResult(res)
           if (res.verdict === 'danger') setInterrupted(true)
         } else {
@@ -422,7 +428,7 @@ export function Listen({ onBack }: { onBack: () => void }) {
         setAnalyzing(false)
       }
     },
-    [],
+    [enginePreference],
   )
 
   const stop = useCallback(() => {

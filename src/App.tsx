@@ -82,7 +82,8 @@ export default function App() {
   if (path === '/dev/engines') return <Engines />
   if (path === '/dev/llm') return <Llm />
 
-  if (path === '/listen') return <Listen onBack={() => navigate('/')} />
+  if (path === '/listen')
+    return <Listen onBack={() => navigate('/')} enginePreference={enginePreference} />
 
   if (path === '/result') {
     // Deep-linking straight to /result (or a reload) has nothing to show, so
