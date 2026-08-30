@@ -185,6 +185,9 @@ export const copy = {
   listen_denied: 'Kavach needs microphone access',
   listen_denied_note:
     'Allow the microphone in your browser settings, then tap Start again.',
+  listen_busy: 'Something else is using the microphone',
+  listen_busy_note:
+    'Another app or tab is recording. Close it — or take the call off speaker and back on — then tap Start again.',
   listen_unsupported: 'This browser cannot listen',
   listen_unsupported_note:
     'Listen mode needs Chrome on Android. You can still try it with an example below, or check a pasted message.',

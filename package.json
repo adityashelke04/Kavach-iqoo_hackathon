@@ -17,7 +17,8 @@
     "test:offline": "node scripts/test-offline.mjs",
     "test:report": "node scripts/test-report.mjs",
     "test:predict": "node scripts/test-predict.mjs",
-    "test:local": "node scripts/test-local.mjs"
+    "test:local": "node scripts/test-local.mjs",
+    "test:listen": "node scripts/test-listen.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",

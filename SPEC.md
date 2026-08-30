@@ -2334,17 +2334,26 @@ should pick `standard` instead — which is the reading step 2 asks you to recor
    matter: a model that flags the real SBI debit alert is worse than no model.
    This is the same page `npm run test:local` drives on a laptop, and D18
    records what it found there.
-5. **Open `/`, run one scam and one legitimate message** with On-device
+5. **Open `/listen`, tap Start, and talk at the phone.** Words must appear in
+   the transcript. The failure D19 fixed looks like this: the caption sits on
+   "Listening…", nothing is transcribed, and Android shows *"Chrome is currently
+   recording audio"*. If that toast appears, something on this screen is holding
+   the microphone the recogniser needs — do not go looking at permissions. If
+   instead you get *"Something else is using the microphone"*, that is the new
+   `busy` state doing its job: close whatever else is recording and tap Start
+   again. **This is the only step that can prove D19, and it cannot be proved on
+   a laptop.**
+6. **Open `/`, run one scam and one legitimate message** with On-device
    selected. P7's first exit criterion.
-6. **Install it.** Chrome menu → *Add to home screen*, or take the offer on
+7. **Install it.** Chrome menu → *Add to home screen*, or take the offer on
    Home. Confirm the launcher icon is the shield on its dark ground and not a
    mark on a white disc — if it is a white disc, the maskable icon did not
    ship.
-7. **Airplane mode on. Launch from the home-screen icon. Paste a scam.** A
+8. **Airplane mode on. Launch from the home-screen icon. Paste a scam.** A
    correct verdict here is P8's exit criterion and §13 beat 4 — the whole
    pitch, in one action.
 
-Steps 1–5 tick P2 and P7. Steps 6–7 tick P8. Fill in §8.1's table from step 2
+Steps 1–6 tick P2 and P7. Steps 7–8 tick P8. Fill in §8.1's table from step 2
 before ticking anything.
 
 ### Phase completion log
@@ -2356,7 +2365,7 @@ session needs to know that is not already in this document.
 |---|---|---|
 | P0 | deployed | **Live at https://kavach-iqoo-hackathon.vercel.app** — open this on the iQOO. Production was verified after the P8/D16 deploy: the worker takes control, every manifest icon serves as a real image (not the SPA fallback), and Check → Verdict → Report runs end to end. The on-device WebGPU check on the phone is still the open item. `/dev/probe` reports `isSecureContext` first — see the secure-context trap above. |
 | P4-P6 | done | Home / Check / Verdict wired to the orchestrator. Screens compose, components render, detector decides - no component imports an engine. `npm run test:smoke` renders every screen against real engine output. |
-| P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence. |
+| P11 | done early | Listen mode works: Web Speech -> rolling 600-char buffer -> 3s debounce -> same orchestrator with channel:'voice' -> full-screen interrupt on danger. Restarts on `end` because Android Chrome stops on silence — **but see D19**: that restart had no brake, and the screen was holding a `getUserMedia` capture the Android recogniser needed. Microphone lifecycle rebuilt and gated by `npm run test:listen`. Still unproven on the phone; that is step 5 of the on-device session above. |
 | P1 | done | Corpus at 40 messages, gate PASS, 100% scam->danger. Conclusive-signal floors added (§8.3) after holdout testing showed single-tactic scams capped below the threshold. `/dev/engines` is the hand-test surface. |
 | UI redesign | done | Tokens, stylesheet, components and all four screens rebuilt against D11 (plain register). New gate: `npm run test:mobile` renders every screen at 412x915 through CDP device emulation, asserts no horizontal scroll, no tap target under 44px, and no percentage in the DOM, and drives the real Check -> Verdict flow for both a scam and a legitimate message. Do not use `chrome --screenshot --window-size` for this: Windows Chrome will not size a window below ~500px and silently crops, which reads as phantom overflow. |
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
@@ -3291,6 +3300,78 @@ downloads real weights and takes minutes.
 
 `/dev/local` is built to be opened by hand on the phone for the same reason.
 That is now step 4 of §11's on-device session.
+
+---
+
+### 2026-08-30 — D19 · One thing opens the microphone at a time
+
+**D19 · Listen mode was competing with itself for the microphone. The equalizer
+was the reason, and the equalizer was decoration.**
+
+On the phone, starting Listen produced *"Chrome is currently recording audio"*
+and no transcript. It reads like a permissions bug. It is not one.
+
+On Android, `webkitSpeechRecognition` is not in-process. Chrome brokers it to
+**Google Speech Services**, a separate app that opens the microphone itself, and
+that handle is exclusive. `Listen.start()` was calling `startAudioMeter()`
+first, which took a `getUserMedia` capture and **held it open for the whole
+session** to feed an `AnalyserNode` driving the twelve-bar meter. The recogniser
+then asked the platform for a microphone this page was already holding, and lost.
+The screen sat on "Listening…" forever while the phone showed the toast.
+
+Three things then made it worse, each hiding the one before it:
+
+**1 · The restart loop had no brake.** `onend` restarted unconditionally after
+150ms. `onerror` handled only `not-allowed` and `service-not-allowed`, so
+`audio-capture` — the *exact* error the conflict raises — fell straight through
+to the restart. Measured on the pre-fix build: **37 start attempts in six
+seconds**, indefinitely. That is what turned one toast into a repeating one.
+
+**2 · Nothing was ever torn down.** Each restart built a *new* recogniser and
+abandoned the old one with its handlers still attached. An abandoned session
+keeps delivering buffered results — the test drives one into a transcript that
+had already been cleared — and on Android keeps its end of the microphone.
+
+**3 · A stopped call followed you to the next one.** `stop()` starts a deep
+analysis of the whole transcript; `reset()` and `playPreset()` then clear that
+transcript immediately. With the on-device engine taking seconds, the analysis
+of the *previous* call resolved afterwards and called `setResult` —
+`setInterrupted(true)` included. On the pre-fix build the digital-arrest
+interrupt lands on top of the legitimate delivery call. On a demo stage that is
+the worst possible failure: Kavach calling a real courier a scam.
+
+**What changed.** The rule is now one line: **exactly one thing on this screen
+opens the microphone at a time.**
+
+- `getUserMedia` is still called, but only to take the permission grant, and
+  every track is stopped in a `finally` before recognition starts. A 300ms
+  `MIC_RELEASE_MS` wait follows, because the platform does not release the
+  handle synchronously.
+- The meter is driven by **what the recogniser hears** — it swells on results
+  and settles after a second of quiet. It is an honest "Kavach can hear this",
+  not a claimed amplitude. We cannot read the waveform without holding the
+  stream, and holding the stream is the bug. Decoration does not outrank the
+  feature.
+- `teardownRecognition()` detaches every handler *first*, then prefers
+  `abort()` over `stop()` — `stop()` waits to flush a final result, and holds
+  the handle while it waits.
+- Restarts back off (250ms doubling to 4s, plus the release wait) and give up
+  after four consecutive failures. `no-speech` is not a failure — it is a quiet
+  moment on a call.
+- `audio-capture` gets its own `busy` phase and plain copy: *"Something else is
+  using the microphone."* Something genuinely is. Per §8.3 this is not the rules
+  engine leaking — it is the phone's state, which the person can act on.
+- A generation counter (`runGenRef`) invalidates any analysis in flight when the
+  session is cleared, so nothing from a finished call can land on the next.
+
+**Gate:** `npm run test:listen`. It fakes both the recogniser and
+`getUserMedia`, so the conflict is observable without hardware: it counts
+capture streams open at the moment `start()` is called, counts restart
+attempts, delivers a result through a torn-down session, and walks a scam call
+into a legitimate one. Seven of its checks fail on the pre-fix build.
+
+It still proves nothing about the iQOO. Listen mode is step 5 of §11's
+on-device session, and the toast either appears there or it does not.
 
 ---
 

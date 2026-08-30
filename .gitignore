@@ -26,3 +26,6 @@ screenshots/
 
 # on-device model cache used by scripts/test-local.mjs
 .chrome-llm-profile/
+
+# headless profile used by scripts/test-listen.mjs
+.chrome-listen-profile/
