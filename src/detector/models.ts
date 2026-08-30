@@ -119,6 +119,44 @@ export const MODELS: Record<Tier, ModelSpec> = {
  * the iQOO twice — once cold, once from cache — and watching it generate.
  */
 export const CEILING_PROBES: ModelSpec[] = [
+  /**
+   * D22 diagnostics — these are here to answer "why is this phone so slow",
+   * not because they are candidates for a tier.
+   *
+   * Measured on the iQOO 15: `/dev/llm` running Llama-3.2-1B q4f16_1 with a
+   * ~40-token prompt and `max_tokens: 150` had produced nothing after 400
+   * seconds, on a healthy adapter (qualcomm, adreno-8xx, `shader-f16`
+   * advertised and a device with it obtainable). That rules out the app: the
+   * prompt, the fusion and the reconsideration pass are all irrelevant at that
+   * magnitude.
+   *
+   * The leading hypothesis is that this driver advertises `shader-f16` but runs
+   * it slowly — a known shape of Android WebGPU problem. These two separate the
+   * cases in one tap each:
+   *
+   * - the **q4f32_1** build of the same model: if this is dramatically faster,
+   *   the f16 path is the fault and the fix is a quantisation change, not a
+   *   smaller model.
+   * - **SmolLM2 360M**: a third of the weights. If speed scales with size, the
+   *   device is merely slow and a smaller tier helps. If it does not, the cost
+   *   is fixed overhead per operation and no tier will rescue it.
+   */
+  {
+    tier: 'max',
+    modelId: 'Llama-3.2-1B-Instruct-q4f32_1-MLC',
+    label: 'Llama 3.2 1B (f32) — D22 probe',
+    params: '1B',
+    vramMB: 1129,
+    why: 'Same model, f32 activations. Tests whether this Adreno driver is slow on the f16 path it advertises.',
+  },
+  {
+    tier: 'max',
+    modelId: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
+    label: 'SmolLM2 360M — D22 probe',
+    params: '360M',
+    vramMB: 376,
+    why: 'A third of the weights. Tests whether this device is size-bound or overhead-bound.',
+  },
   {
     tier: 'max',
     modelId: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',

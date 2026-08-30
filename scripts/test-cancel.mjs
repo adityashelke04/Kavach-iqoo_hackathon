@@ -266,6 +266,42 @@ function hangingDetector() {
 }
 
 /* ------------------------------------------------------------------ */
+group('An engine that ignores its abort cannot hang the app (D22)')
+
+{
+  /**
+   * The iQOO case: on-device generation is GPU work, `interruptGenerate()`
+   * cannot break into a running prefill, and `detect()` was still unresolved at
+   * 280 seconds with the 45s cap never firing. An awaited promise that never
+   * settles is a hang no timeout above it can fix — so the orchestrator must
+   * not depend on the engine cooperating.
+   */
+  const stubborn = {
+    id: 'local',
+    async isAvailable() {
+      return true
+    },
+    // Ignores the signal entirely, exactly like a GPU prefill in flight.
+    detect() {
+      return new Promise(() => {})
+    },
+  }
+  const started = Date.now()
+  const result = await analyze(SCAM, 'local', undefined, undefined, { local: stubborn })
+  const elapsed = Date.now() - started
+  check(
+    result.verdict !== undefined && result.engineUsed === 'rules',
+    'an engine that never resolves still yields the deterministic verdict',
+    `engine ${result.engineUsed}`,
+  )
+  check(
+    elapsed < ENGINE_TIMEOUTS.local.first + 5_000,
+    'and it lands within the budget rather than never',
+    `${elapsed}ms`,
+  )
+}
+
+/* ------------------------------------------------------------------ */
 group('The UI wires the signal it is given')
 
 const app = src('src/App.tsx')

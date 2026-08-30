@@ -8,7 +8,7 @@ import { analyzeWithRules, toBriefing } from './rules.ts'
 import { classifySender } from './sender.ts'
 import { validateResult } from './validate.ts'
 import { cloudDetector } from './cloud.ts'
-import { localDetector, isModelLoaded } from './local.ts'
+import { localDetector, isModelLoaded, GENERATION_TIMEOUT_MS } from './local.ts'
 import { fuse, findAuditGap, worthReconsidering } from './fuse.ts'
 
 /**
@@ -103,20 +103,95 @@ function withTimeout(
   }
 }
 
+/**
+ * A deadline that changes when the download finishes — D22.
+ *
+ * A cold on-device call is two very different things back to back: a
+ * several-hundred-megabyte download, which legitimately takes minutes and shows
+ * visible progress, and a generation, which must not. Giving the whole call one
+ * budget meant the download's 480s was also bounding generation — so a device
+ * where inference stalls kept a user waiting eight minutes before the
+ * deterministic answer appeared. That is what was reported from the iQOO, and
+ * `test:cancel` reproduces it exactly: 480,009ms to fall back.
+ *
+ * So the deadline starts generous and tightens the moment the weights are
+ * resident. The download keeps its long budget; generation never gets more than
+ * `GENERATION_TIMEOUT_MS` from the point it could actually begin.
+ */
+function localTwoPhaseSignal(external?: AbortSignal): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController()
+  let deadline = Date.now() + LOCAL_COLD_LOAD_TIMEOUT_MS
+  let tightened = isModelLoaded()
+  if (tightened) deadline = Date.now() + GENERATION_TIMEOUT_MS
+
+  const tick = setInterval(() => {
+    if (!tightened && isModelLoaded()) {
+      tightened = true
+      deadline = Math.min(deadline, Date.now() + GENERATION_TIMEOUT_MS)
+    }
+    if (Date.now() >= deadline) controller.abort()
+  }, 500)
+
+  const forward = () => controller.abort()
+  if (external?.aborted) controller.abort()
+  else external?.addEventListener('abort', forward, { once: true })
+
+  return {
+    signal: controller.signal,
+    done: () => {
+      clearInterval(tick)
+      external?.removeEventListener('abort', forward)
+    },
+  }
+}
+
 async function runOnce(
   engine: Detector,
   input: DetectionInput,
   budgetMs: number,
   external?: AbortSignal,
 ): Promise<DetectionResult | null> {
-  const { signal, done } = withTimeout(budgetMs, external)
+  // `budgetMs < 0` is the caller asking for the on-device two-phase deadline.
+  const { signal, done } =
+    budgetMs < 0 ? localTwoPhaseSignal(external) : withTimeout(budgetMs, external)
   try {
     // Nothing below is worth doing for a run that is already cancelled, and
     // `isAvailable()` on the local engine touches the GPU adapter.
     if (signal.aborted) return null
     if (!(await engine.isAvailable())) return null
     if (signal.aborted) return null
-    return validateResult(await engine.detect(input, signal))
+
+    /**
+     * Race the engine against the budget rather than trusting it to stop — D22.
+     *
+     * `withTimeout` aborts a *signal*, and every engine is written to honour it.
+     * That is not the same as the engine being able to. On-device generation is
+     * GPU work: `interruptGenerate()` takes effect between decode steps and
+     * cannot break into a prefill that is already running. Measured on the iQOO
+     * 15 with the page verifiably visible for the whole run, the 45s generation
+     * cap never fired and `detect()` was still unresolved at 280 seconds.
+     *
+     * An awaited promise that never settles is a hang no timeout above it can
+     * fix, so the timeout now belongs here, where it does not depend on the
+     * engine's cooperation. The abandoned generation finishes whenever it
+     * finishes and its result is dropped; §6's contract only requires that the
+     * user gets an answer, and the deterministic one is always valid (D2).
+     */
+    const raced = await Promise.race([
+      engine.detect(input, signal).then((r) => ({ ok: true as const, r })),
+      new Promise<{ ok: false }>((resolve) => {
+        if (signal.aborted) return resolve({ ok: false })
+        signal.addEventListener('abort', () => resolve({ ok: false }), { once: true })
+      }),
+    ])
+
+    if (!raced.ok) {
+      console.info(
+        `[kavach] ${engine.id} engine did not answer within ${budgetMs}ms — continuing without it`,
+      )
+      return null
+    }
+    return validateResult(raced.r)
   } catch (err) {
     console.info(`[kavach] ${engine.id} engine did not answer (${(err as Error).message}) — continuing`)
     return null
@@ -157,8 +232,9 @@ export async function analyze(
   // A cold on-device call is mostly download, not inference — budget for that
   // rather than abandoning a nearly-complete one. Warm calls, and every cloud
   // call, use the normal budget.
-  const firstBudget =
-    preference === 'local' && !isModelLoaded() ? LOCAL_COLD_LOAD_TIMEOUT_MS : budgets.first
+  // -1 selects the two-phase deadline: the download may take minutes, the
+  // generation that follows it may not (D22).
+  const firstBudget = preference === 'local' ? -1 : budgets.first
 
   onPhase?.('thinking')
   let llm = await runOnce(
