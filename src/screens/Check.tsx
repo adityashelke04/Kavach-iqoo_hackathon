@@ -135,8 +135,21 @@ export function Check({
     const hidden = createHiddenTimeTracker()
 
     const id = setInterval(() => {
-      if (startedAt.current) {
-        setElapsedMs(Math.max(0, Date.now() - startedAt.current - hidden.hiddenMs()))
+      if (!startedAt.current) return
+      const wall = Date.now() - startedAt.current
+      const paused = hidden.hiddenMs()
+      // Show wall-clock. Subtracting the paused time outright was worse than the
+      // problem it fixed: with the screen off the counter sat at "0.0s" for
+      // minutes, which reads as broken rather than as honest. The paused figure
+      // is kept for the console, where it explains a long wait instead of hiding
+      // one.
+      setElapsedMs(wall)
+      if (paused > 2000 && Math.round(wall / 1000) % 15 === 0) {
+        console.info(
+          `[kavach] analysis has been running ${(wall / 1000).toFixed(0)}s, of which ` +
+            `${(paused / 1000).toFixed(0)}s with the page hidden — a hidden tab is frozen ` +
+            `by Android and computes nothing (D22).`,
+        )
       }
     }, 250)
 
