@@ -13,6 +13,7 @@ import { analyze, type AnalysisPhase, type EnginePreference } from './detector/o
 import { analyzeWithRules } from './detector/rules'
 import { localSupported, preloadModel } from './detector/local'
 import type { DetectionInput, DetectionResult } from './detector/types.ts'
+import { useWakeLock } from './pwa/wakelock.ts'
 
 const DEFAULT_SAMPLE_TEXT =
   'Dear Customer, your SBI account will be blocked within 24 hours due to incomplete KYC. Update your KYC immediately at http://sbi-kyc-verify.in/update to avoid suspension.'
@@ -56,6 +57,16 @@ export default function App() {
    * together.
    */
   const abort = useRef<AbortController | null>(null)
+
+  /**
+   * Keep the screen on while the device is working (D22).
+   *
+   * Android freezes a screen-off tab and WebGPU stops with it, so an analysis
+   * that spans a screen lock never finishes — while the elapsed counter, which
+   * is wall-clock, keeps climbing. Observed on the iQOO at 325s with the model
+   * fully resident and nothing actually computing.
+   */
+  useWakeLock(busy)
 
   // Start the model download on app open rather than on first analysis, so the
   // first check is not also the first load (D6, §9).

@@ -4,6 +4,7 @@ import type { DetectionInput } from '../detector/types.ts'
 import type { AnalysisPhase } from '../detector/orchestrator.ts'
 import { getDeviceTelemetry } from '../device/telemetry.ts'
 import { onModelProgress } from '../detector/local.ts'
+import { createHiddenTimeTracker } from '../pwa/wakelock.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
 import {
@@ -121,11 +122,28 @@ export function Check({
     // have picked from scratch.
     void getDeviceTelemetry().then((t) => setModelLabel(`${t.model.label} (${t.tier})`))
 
+    /**
+     * Time the phone actually spent working, not time it spent on a table (D22).
+     *
+     * This counter was plain wall-clock, and Android freezes a screen-off tab —
+     * so a locked phone produced "325.5s" of "Reading your message…" while
+     * nothing was computing. §9c holds the app to an honest account of its own
+     * effort, and a figure inflated by a screen lock is not one. The wake lock
+     * in `App` should stop this arising at all; this makes the number truthful
+     * when it does.
+     */
+    const hidden = createHiddenTimeTracker()
+
     const id = setInterval(() => {
-      if (startedAt.current) setElapsedMs(Date.now() - startedAt.current)
+      if (startedAt.current) {
+        setElapsedMs(Math.max(0, Date.now() - startedAt.current - hidden.hiddenMs()))
+      }
     }, 250)
 
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      hidden.stop()
+    }
   }, [busy])
 
   // Subscribed for the life of the screen, not just while busy: the preload

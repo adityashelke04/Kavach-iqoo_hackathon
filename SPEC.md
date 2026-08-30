@@ -1027,9 +1027,31 @@ session re-benchmarks:
 | `max` | `Qwen2.5-1.5B-Instruct-q4f16_1-MLC` | 1,630 MB | _TBD_ | _TBD_ | ☐ |
 
 The model IDs and the VRAM column are MLC's own declared figures, read out of
-`prebuiltAppConfig` and asserted by `npm run test:cancel`. **Load time and
-tokens/sec are still empty and can only be filled from the iQOO** — that is step
-2 of §11's on-device session, and no laptop reading substitutes for it.
+`prebuiltAppConfig` and asserted by `npm run test:cancel`.
+
+#### Measured on the iQOO 15 — 2026-08-30 (D22)
+
+Read over Chrome DevTools (`adb forward tcp:9222
+localabstract:chrome_devtools_remote`) with the app running:
+
+| Reading | Value |
+|---|---|
+| `maxStorageBufferBindingSize` | **2048 MB** |
+| `maxBufferSize` | 2048 MB |
+| `navigator.deviceMemory` | 8 GB |
+| `isSecureContext` | true |
+| Storage used after the `standard` model resolved | 679 MB |
+| Storage quota | 10,919 MB |
+
+**This contradicts the premise `models.ts` is written on.** That file argues at
+length that Chrome on Android caps the binding size at 128 MiB whatever the
+hardware, and picks every tier against that number. This device reports 2 GB.
+The cap is real on some devices and the conservative default is still right for
+the fleet Kavach is built for, but it is not what constrains the demo phone.
+
+Load time and tokens/sec are **still not measured**: the only timings taken so
+far spanned a screen lock, and a frozen tab computes nothing while the clock
+runs (D22). They need a foreground run.
 
 Switching tiers triggers a fresh download. That is acceptable and is itself a
 demonstrable moment (a visible, honest cost of running locally).
@@ -2446,7 +2468,7 @@ session needs to know that is not already in this document.
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
 | P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
 | P8 | built, UNVERIFIED on device | Icons generated (`npm run icons`), manifest hardened, fonts runtime-cached so the offline run looks like the online one, install offer on Home, and Home's privacy line now changes wording when the network goes. New gate: `npm run test:offline`. Two production-only bugs closed on the way: the manifest had no icons at all, and `vercel.json` would have rewritten `/icons/*` to `index.html`. Playwright (`playwright-core` + the system Chrome channel, no browser download) is now the driver for the new scripts; `mobile-check.mjs` keeps its own CDP client on purpose. |
-| D22 speed | 2026-08-30 | **240s with no verdict on the phone.** Three causes: D21 made every legitimate message generate twice (the audit gap fired on the rules `authority` tactic the model correctly declined to repeat) — now gated by `worthReconsidering`, down from every legit message to 4 of 40 corpus messages; per-tactic notes were ~30% of scam output and are often discarded by `mergeTactics` — prompt rule 8 caps them, measured at 21% fewer completion tokens with zero quality loss over 12 corpus messages; and the model download was **invisible on Home**, so a ~700 MB first fetch read as a hang. Home now shows it with megabytes. The arithmetic says the 240s was the download, not inference: the legit sample needs ~100 completion tokens. Still no tokens/sec or buffer-cap reading from the device. |
+| D22 speed | 2026-08-30 | **240s with no verdict on the phone. NOT the download — corrected mid-entry.** CDP off the device showed the model fully resident (679 MB) and the engine generating for 325s on a ~100-token answer. Cause: Android freezes a screen-off tab so WebGPU stops, while the elapsed counter (plain `Date.now()`) keeps running. A screen wake lock is now held during analysis and the elapsed figure excludes hidden time. Also fixed: D21 made every legitimate message generate twice (now 4 of 40 corpus messages), and prompt rule 8 cut completion tokens 21% with no quality loss. **Measured at last: the iQOO reports `maxStorageBufferBindingSize` = 2048 MB, not the 128 MiB `models.ts` is written around** — see §8.1. Tokens/sec still unmeasured; every timing so far spanned a screen lock and is therefore not evidence. |
 | D21 cloud | 2026-08-30 | **The cloud engine was still shipping the bug.** `api/analyze.ts` duplicates the prompt by hand (it cannot import from `src/`) and D21 had only fixed the `src/` copy — as D20 had only fixed `src/`'s `max_tokens`. Verified live: the old briefing made the model invent three tactics on a genuine SBI alert, and §4 rule 2 turns three tactics into `danger` whatever the confidence. Both copies aligned; the endpoint no longer drops a markers-only briefing. New gate `npm run test:cloud` compares the two copies and runs a live round trip when `OPENROUTER_API_KEY` is present (skipped cleanly without one). Cloud endpoint confirmed live and correct on production. |
 | D21 fix | 2026-08-30 | **False positive on a real bank SMS.** Reported from the phone: the Check screen's own SBI sample, from `VM-SBIINB`, came back "This is a scam". Rules was right all along (`safe` @ 0.00); four defects sat downstream. `toBriefing` sent the model only the incriminating half of the scan; `fuseConfidence` is monotone in `rules`, so a 0 could not express disagreement; `mergeTactics` unioned the model's tactics in unscreened, bypassing §8.3's negative defence; and `danger` had no corroboration requirement, so **all 19 legitimate corpus messages** reached danger against one over-eager model. Fixed by carrying both halves of the scan into the briefing, screening LLM tactics against the deterministic subtotals, dropping sole-`authority` from a registered sender, and §4's new override rule 5. New gate: `npm run test:falsepos` — and note why it had to exist: `test:corpus` only ever ran the rules engine. |
 | D20 fix | 2026-08-30 | **Exhibition latency + cancellation.** `pickTier` no longer auto-selects `max` (it was promoting any roomy-buffer device to Qwen2.5-3B, against §8.1); `max` is now Qwen2.5-1.5B and the 3B moved to `CEILING_PROBES`; `max_tokens` 700 → 500; cold-load ceiling 900s → 480s. `App` owns an `AbortController` and leaving `/check` genuinely cancels — the effect is on `path`, not the back arrow, because Android's back button fires `popstate`. Check has a Cancel button. Listen's deep run aborts as well as being disowned. Fixed a live defect the gate found: `withTimeout` dropped an *already*-aborted external signal. New gate: `npm run test:cancel`. **Half of P10 is now done** (abort propagation + cancel); the triple-tap failsafe and the `cloud_unavailable` note are what remain. |
@@ -3825,31 +3847,56 @@ tokens, zero misjudged, zero unparseable.** The prompt grows by ~64 tokens per
 call, which is a good trade — prefill is roughly an order of magnitude cheaper
 per token than decode on a phone GPU.
 
-#### 3. The download was invisible until it was in the way
+#### 3. The screen going to sleep stops the work — and the clock does not
 
-This is the one that most likely explains 240 seconds, and it is not an
-inference problem at all.
+**An earlier draft of this entry blamed the download. That was wrong, and the
+device says so.** Read off the phone over CDP, mid-incident:
 
-The preload starts on app open (D6) and did so **completely silently** — `Home`
-displayed nothing about it. The first a person knew of a several-hundred-megabyte
-download was tapping Analyze and landing on a wait screen. That screen does say
-"Getting the AI ready on your phone…" and does draw a bar, but by then the wait
-reads as a hang, and the numbers that would settle it were never shown.
+```
+statusLine    : "Reading your message on this phone…"      <- generating
+hasProgressBar: false                                       <- no download in flight
+meta          : "325.5s · Llama 3.2 1B Instruct (standard)"
+storageUsedMB : 679                                         <- weights fully resident
+```
 
-The arithmetic says the same thing: the legitimate sample needs ~100 completion
-tokens. Even at a pessimistic 8 tokens/second that is ~12 seconds of generation.
-240 seconds does not fit generation at all. It fits a first download of ~700 MB.
+The model was downloaded. The engine was generating, and had been for 325
+seconds, on a message that needs about 100 completion tokens.
 
-So `Home` now shows the model arriving, with **megabytes fetched** — §4 permits
-numbers about the *device*, and §9b explicitly asks the app to measure and show
-its own work. It is quiet, never blocks, and disappears once the weights are
-resident, replaced by a one-line "AI ready on this phone". The download now
-finishes while the person reads the screen instead of ambushing them at Analyze,
-and before a demo it can be warmed deliberately by simply opening the app.
+The reason is not inference speed. **Android freezes a backgrounded or
+screen-off tab and WebGPU work stops with it — while `Date.now()` does not.**
+The Check screen's elapsed figure was plain wall-clock (`Date.now() -
+startedAt`), so a phone that went to sleep mid-analysis showed a climbing
+counter next to a status line claiming work that had in fact been suspended.
+Nothing in the app held a wake lock or tracked visibility at all.
 
-`ModelProgress` gains `fetchedMB` / `totalMB`, parsed out of the runtime's own
-progress line. Parsing is fragile by nature, so every failure path returns null
-and the UI shows less — never a wrong number, never a crash.
+On an exhibition floor this is fatal in the most ordinary way: someone sets the
+phone down for a moment and the demo silently stops.
+
+Two changes, in `src/pwa/wakelock.ts`:
+
+- **A screen wake lock is held for the duration of an analysis** (`useWakeLock`
+  in `App`, keyed to `busy`). Best-effort and silent throughout: the API is
+  absent on many browsers, the request is refused while the document is hidden,
+  and the platform releases the sentinel whenever the page hides — so it is
+  re-acquired on `visibilitychange`. It is never surfaced to the user.
+- **The elapsed figure now excludes time the page spent hidden**
+  (`createHiddenTimeTracker`). §9c holds this app to an honest account of its
+  own effort, and a duration inflated by a screen lock is not one.
+
+**Any latency report that spans a screen lock is not a measurement.** The 240s
+and 325s figures are wall-clock and include an unknown amount of frozen time, so
+neither is evidence about this device's inference speed. That number still has
+to be taken with the app in the foreground.
+
+#### Also learned, and it invalidates a premise
+
+`models.ts` opens with a long argument that the binding cap "is commonly 128
+MiB on Android, no matter how much memory the device has", and every tier is
+chosen against that. **The iQOO 15 reports 2048 MB.** See §8.1's table. The
+128 MiB ceiling is real on some devices and the conservative reasoning is still
+right for the fleet, but it is not the constraint on the demo phone — which
+means the pre-D20 auto-selection of `max` was reaching a genuinely loadable 3B,
+and simply a slow one.
 
 #### What is still unmeasured
 
