@@ -37,6 +37,12 @@ export const copy = {
   // false claim about what the phone is doing, and §9c holds this app to the
   // same honesty about its own work that §4 holds it to about the message.
   analyzing_downloading: 'Getting the AI ready on your phone…',
+  // Home, while the model arrives in the background (D22). Plain register per
+  // D11: it says what is happening and why the wait is worth it, once.
+  model_warming: 'Getting the AI ready on your phone',
+  model_warming_sub: 'One time only. After this it works with no signal.',
+  model_ready: 'AI ready on this phone',
+  model_ready_sub: 'Works with no signal from here on.',
   analyzing_downloading_note: 'One time only. After this it works with no signal.',
 
   // --- Verdict -------------------------------------------------------------

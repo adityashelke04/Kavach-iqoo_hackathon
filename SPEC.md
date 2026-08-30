@@ -2446,6 +2446,7 @@ session needs to know that is not already in this document.
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
 | P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
 | P8 | built, UNVERIFIED on device | Icons generated (`npm run icons`), manifest hardened, fonts runtime-cached so the offline run looks like the online one, install offer on Home, and Home's privacy line now changes wording when the network goes. New gate: `npm run test:offline`. Two production-only bugs closed on the way: the manifest had no icons at all, and `vercel.json` would have rewritten `/icons/*` to `index.html`. Playwright (`playwright-core` + the system Chrome channel, no browser download) is now the driver for the new scripts; `mobile-check.mjs` keeps its own CDP client on purpose. |
+| D22 speed | 2026-08-30 | **240s with no verdict on the phone.** Three causes: D21 made every legitimate message generate twice (the audit gap fired on the rules `authority` tactic the model correctly declined to repeat) — now gated by `worthReconsidering`, down from every legit message to 4 of 40 corpus messages; per-tactic notes were ~30% of scam output and are often discarded by `mergeTactics` — prompt rule 8 caps them, measured at 21% fewer completion tokens with zero quality loss over 12 corpus messages; and the model download was **invisible on Home**, so a ~700 MB first fetch read as a hang. Home now shows it with megabytes. The arithmetic says the 240s was the download, not inference: the legit sample needs ~100 completion tokens. Still no tokens/sec or buffer-cap reading from the device. |
 | D21 cloud | 2026-08-30 | **The cloud engine was still shipping the bug.** `api/analyze.ts` duplicates the prompt by hand (it cannot import from `src/`) and D21 had only fixed the `src/` copy — as D20 had only fixed `src/`'s `max_tokens`. Verified live: the old briefing made the model invent three tactics on a genuine SBI alert, and §4 rule 2 turns three tactics into `danger` whatever the confidence. Both copies aligned; the endpoint no longer drops a markers-only briefing. New gate `npm run test:cloud` compares the two copies and runs a live round trip when `OPENROUTER_API_KEY` is present (skipped cleanly without one). Cloud endpoint confirmed live and correct on production. |
 | D21 fix | 2026-08-30 | **False positive on a real bank SMS.** Reported from the phone: the Check screen's own SBI sample, from `VM-SBIINB`, came back "This is a scam". Rules was right all along (`safe` @ 0.00); four defects sat downstream. `toBriefing` sent the model only the incriminating half of the scan; `fuseConfidence` is monotone in `rules`, so a 0 could not express disagreement; `mergeTactics` unioned the model's tactics in unscreened, bypassing §8.3's negative defence; and `danger` had no corroboration requirement, so **all 19 legitimate corpus messages** reached danger against one over-eager model. Fixed by carrying both halves of the scan into the briefing, screening LLM tactics against the deterministic subtotals, dropping sole-`authority` from a registered sender, and §4's new override rule 5. New gate: `npm run test:falsepos` — and note why it had to exist: `test:corpus` only ever ran the rules engine. |
 | D20 fix | 2026-08-30 | **Exhibition latency + cancellation.** `pickTier` no longer auto-selects `max` (it was promoting any roomy-buffer device to Qwen2.5-3B, against §8.1); `max` is now Qwen2.5-1.5B and the 3B moved to `CEILING_PROBES`; `max_tokens` 700 → 500; cold-load ceiling 900s → 480s. `App` owns an `AbortController` and leaving `/check` genuinely cancels — the effect is on `path`, not the back arrow, because Android's back button fires `popstate`. Check has a Cancel button. Listen's deep run aborts as well as being disowned. Fixed a live defect the gate found: `withTimeout` dropped an *already*-aborted external signal. New gate: `npm run test:cancel`. **Half of P10 is now done** (abort propagation + cancel); the triple-tap failsafe and the `cloud_unavailable` note are what remain. |
@@ -3778,6 +3779,88 @@ The on-device engine's own round trip. The prompt is now proved correct against
 a real model through the cloud path, and the structural defences are proved by
 `test:falsepos`, but nobody has yet watched WebLLM produce this on the iQOO.
 Step 6 of §11's on-device session.
+
+---
+
+### 2026-08-30 - D22 - The wait was mostly self-inflicted, and mostly invisible
+
+**Amends D15 step 6 (the reconsideration pass) and §8.4 (adds prompt rule 8).**
+
+**Reported from the phone.** Tapped the third sample on Check, saw "Llama 3.2 1B
+Instruct", and after **240 seconds** still had no verdict.
+
+Three separate things, and the third is probably the one that actually cost the
+four minutes.
+
+#### 1. D21 made every legitimate message generate twice
+
+The rules engine registers `authority` on a bare institution name by design —
+§4's impersonation-mismatch rule depends on it — so a genuine bank alert carries
+a rules `authority` tactic while scoring 0.00 and concluding `safe`. After D21
+the model correctly returns **no** tactics on that message.
+
+`findAuditGap` then sees a rules tactic the model omitted and fires a second
+full generation, asking the model to think again about the bank's own name —
+the exact finding D21 exists to dismiss. **The better the model behaved, the
+more work it did**, and on a phone that second call is the difference between
+one wait and two.
+
+It was pure waste: the D21 screens in `fuse.ts` discard that finding anyway.
+`worthReconsidering` now gates it — reconsider only when the deterministic
+engine itself concluded something was wrong, or when the missed tactic would
+actually survive screening. Measured over the corpus, the second generation now
+fires on **4 of 40** messages instead of on every legitimate bank alert.
+
+#### 2. A third of the output was words nobody reads
+
+Measured on the real model, per message: a legitimate alert costs ~100
+completion tokens; a scam costs ~325, of which 340-390 characters are the
+per-tactic `note` fields. `mergeTactics` **already prefers the rules engine's
+own note** — "its copy is fixed, written for the §10.7 register, and
+regression-tested" — so much of that is decoded and then thrown away.
+
+Prompt rule 8 now caps `note` at 12 words, `explanation` at 30 and `nextMove` at
+15. A/B against the live model over 12 corpus messages: **21% fewer completion
+tokens, zero misjudged, zero unparseable.** The prompt grows by ~64 tokens per
+call, which is a good trade — prefill is roughly an order of magnitude cheaper
+per token than decode on a phone GPU.
+
+#### 3. The download was invisible until it was in the way
+
+This is the one that most likely explains 240 seconds, and it is not an
+inference problem at all.
+
+The preload starts on app open (D6) and did so **completely silently** — `Home`
+displayed nothing about it. The first a person knew of a several-hundred-megabyte
+download was tapping Analyze and landing on a wait screen. That screen does say
+"Getting the AI ready on your phone…" and does draw a bar, but by then the wait
+reads as a hang, and the numbers that would settle it were never shown.
+
+The arithmetic says the same thing: the legitimate sample needs ~100 completion
+tokens. Even at a pessimistic 8 tokens/second that is ~12 seconds of generation.
+240 seconds does not fit generation at all. It fits a first download of ~700 MB.
+
+So `Home` now shows the model arriving, with **megabytes fetched** — §4 permits
+numbers about the *device*, and §9b explicitly asks the app to measure and show
+its own work. It is quiet, never blocks, and disappears once the weights are
+resident, replaced by a one-line "AI ready on this phone". The download now
+finishes while the person reads the screen instead of ambushing them at Analyze,
+and before a demo it can be warmed deliberately by simply opening the app.
+
+`ModelProgress` gains `fetchedMB` / `totalMB`, parsed out of the runtime's own
+progress line. Parsing is fragile by nature, so every failure path returns null
+and the UI shows less — never a wrong number, never a crash.
+
+#### What is still unmeasured
+
+Nobody has yet read `maxStorageBufferBindingSize` or a tokens/second figure off
+the iQOO — §8.1's table is still empty, and the 240-second report is a
+stopwatch, not an instrument. The phone was locked whenever it was reachable
+over adb. Chrome DevTools is reachable via `adb forward tcp:9222
+localabstract:chrome_devtools_remote` with the app in the foreground, which is
+how to get real numbers next time; note that a **backgrounded or locked** tab
+has its WebGPU work frozen, so a wait that spans a screen lock is not a
+measurement of anything.
 
 ---
 

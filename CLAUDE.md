@@ -127,6 +127,14 @@ opens the microphone at a time.** Do not reintroduce a `getUserMedia` capture to
 drive the equalizer; that is what made Android report "Chrome is currently
 recording audio". `test:listen` guards it.
 
+Speed on the phone is **D22**. Three rules came out of it. The reconsideration
+pass costs a whole second generation, so it is gated by `worthReconsidering` —
+never reconsider a finding the D21 screens would discard. Prompt rule 8 caps
+note/explanation/nextMove length; decode is roughly 10x costlier per token than
+prefill on a phone, so words are the budget. And **the model download must stay
+visible on Home** — it was silent, and a ~700 MB first fetch read as a hang to a
+tester who waited 240 seconds. Do not make it silent again.
+
 **`api/analyze.ts` duplicates the prompt from `src/detector/prompt.ts` by hand**
 — it cannot import from `src/`. Change one, change the other, in the same commit.
 This has already drifted twice (D20's token budget, D21's briefing), and both

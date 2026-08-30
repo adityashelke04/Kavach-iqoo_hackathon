@@ -207,6 +207,51 @@ export function screenCorroboratedIdentity(
   return [...tactics]
 }
 
+/**
+ * Is a second generation worth what it costs? — D22.
+ *
+ * `findAuditGap` exists to catch a model that *missed* a scam signal the
+ * deterministic scan found (D15 step 6). D21 gave it an unintended second job.
+ *
+ * The rules engine registers `authority` on a bare institution name by design —
+ * §4's impersonation-mismatch rule depends on it — so a genuine bank alert
+ * always carries a rules `authority` tactic while scoring 0.00 and concluding
+ * `safe`. After D21 the model correctly returns *no* tactics on that message.
+ * The audit then sees a rules tactic the model omitted, and fires a second full
+ * generation asking the model to reconsider the very finding D21 exists to
+ * dismiss.
+ *
+ * So the better the model behaved, the more work it did — and on a phone that
+ * second call is the difference between one wait and two. It is pure waste: the
+ * screens in this file would discard the reconsidered finding anyway.
+ *
+ * The gate is therefore: reconsider only when the deterministic engine itself
+ * concluded something was wrong, or when the missed tactic would actually
+ * survive screening. A model and a scan that agree the message is fine have
+ * nothing to argue about.
+ */
+export function worthReconsidering(
+  gap: Tactic,
+  llmTactics: readonly Tactic[],
+  rulesVerdict: DetectionResult['verdict'],
+  input: DetectionInput,
+  sender: SenderSignal,
+): boolean {
+  // The scan found something it stands behind. Always worth a second look.
+  if (rulesVerdict !== 'safe') return true
+
+  // Would this finding survive the D21 screens if the model did adopt it?
+  const { subtotals } = scanDeterministically(input)
+  if ((subtotals[gap.name] ?? 0) < 0) return false
+
+  // Sole authority from a registered sender is dropped by
+  // `screenCorroboratedIdentity`, so reconsidering it cannot change anything.
+  const wouldBeSoleAuthority = gap.name === 'authority' && llmTactics.length === 0
+  if (sender.kind === 'dlt_header' && wouldBeSoleAuthority) return false
+
+  return true
+}
+
 export interface FusionInput {
   rules: DetectionResult
   llm: DetectionResult

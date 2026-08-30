@@ -9,7 +9,7 @@ import { classifySender } from './sender.ts'
 import { validateResult } from './validate.ts'
 import { cloudDetector } from './cloud.ts'
 import { localDetector, isModelLoaded } from './local.ts'
-import { fuse, findAuditGap } from './fuse.ts'
+import { fuse, findAuditGap, worthReconsidering } from './fuse.ts'
 
 /**
  * The orchestrator — SPEC.md §6, decision D15.
@@ -170,7 +170,11 @@ export async function analyze(
 
   if (llm) {
     const gap = findAuditGap(rules.tactics, llm.tactics)
-    if (gap) {
+    // D22: a second generation doubles the wait on a phone, so it has to be
+    // able to change the answer. After D21 the common case was a model
+    // correctly finding nothing on a bank alert and being asked to think again
+    // about the bank's own name.
+    if (gap && worthReconsidering(gap, llm.tactics, rules.verdict, input, senderSignal)) {
       const reconsider: ReconsiderationPrompt = {
         priorExplanation: llm.explanation,
         missingTactic: { name: gap.name, matchedPhrases: gap.evidence.map((e) => e.phrase) },

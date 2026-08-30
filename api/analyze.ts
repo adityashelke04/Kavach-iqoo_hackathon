@@ -73,6 +73,10 @@ Rules you must follow:
    A real bank SMS almost always contains the words "do not share your OTP with
    anyone" — that is the bank protecting the reader, not a scam extracting
    anything. Flagging these is the single most damaging mistake you can make.
+8. Be brief. This runs on the reader's own phone, and every extra word is time
+   a frightened person spends watching a spinner. "note": at most 12 words.
+   "explanation": at most 30 words. "nextMove": at most 15 words. Do not repeat
+   the message back — they can already see it.
 `.trim()
 
 export const VOICE_NOTE = `

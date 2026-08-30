@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import type { EnginePreference } from '../detector/orchestrator.ts'
 import { copy } from '../ui/copy.ts'
@@ -14,6 +14,7 @@ import { DeviceTelemetryPanel, EngineSwitch } from '../ui/components/index.tsx'
 import { useReducedMotion } from '../ui/motion.ts'
 import { useInstallPrompt } from '../pwa/install.ts'
 import { useOnline } from '../pwa/network.ts'
+import { onModelProgress, isModelLoaded, type ModelProgress } from '../detector/local.ts'
 
 /**
  * The two choices settle in a beat apart on first paint rather than appearing
@@ -48,6 +49,35 @@ export function Home({
   const reducedMotion = useReducedMotion()
   const { canInstall, install } = useInstallPrompt()
   const online = useOnline()
+
+  /**
+   * The model arriving, shown here rather than only on the Check screen — D22.
+   *
+   * The preload starts on app open (D6) and used to do so completely silently.
+   * The first a person knew of it was tapping Analyze and landing on a wait
+   * with no stated cause: on the phone that read as a hang, and a tester sat
+   * through four minutes of it not knowing whether anything was happening.
+   *
+   * Showing it here turns a hidden cost into a visible one that finishes while
+   * they read the screen — and §9b wants the app to show its own work anyway.
+   * It is deliberately quiet: never a blocker, never an error, and it
+   * disappears once the weights are resident.
+   */
+  const [progress, setProgress] = useState<ModelProgress | null>(null)
+  const [ready, setReady] = useState(() => isModelLoaded())
+
+  useEffect(
+    () =>
+      onModelProgress((p) => {
+        if (p.done) {
+          setProgress(null)
+          setReady(isModelLoaded())
+        } else {
+          setProgress(p)
+        }
+      }),
+    [],
+  )
 
   // The shield draw-in and tagline settle run once per session, never on a
   // return to Home within the same session (§10.6, D15's Home direction).
@@ -109,6 +139,49 @@ export function Home({
             delayMs={CHOICE_ENTER_DELAY_MS[1]}
           />
         </nav>
+
+        {/* The model arriving. Quiet, honest, and gone once it is here (D22). */}
+        {progress && (
+          <div className="warming" role="status" aria-live="polite">
+            <div className="warming__row">
+              <span className="warming__title">{copy.model_warming}</span>
+              <span className="warming__count">
+                {progress.fetchedMB !== null
+                  ? `${progress.fetchedMB} MB${progress.totalMB !== null ? ` / ${progress.totalMB} MB` : ''}`
+                  : ''}
+              </span>
+            </div>
+            <div
+              className="warming__bar"
+              role="progressbar"
+              aria-label={copy.model_warming}
+              {...(progress.fraction !== null
+                ? { 'aria-valuemin': 0, 'aria-valuemax': 1, 'aria-valuenow': progress.fraction }
+                : {})}
+            >
+              <div
+                className={`warming__bar-fill${
+                  progress.fraction === null ? ' warming__bar-fill--indeterminate' : ''
+                }`}
+                style={
+                  progress.fraction !== null
+                    ? { transform: `scaleX(${Math.max(0.02, Math.min(1, progress.fraction))})` }
+                    : undefined
+                }
+              />
+            </div>
+            <p className="warming__sub">{copy.model_warming_sub}</p>
+          </div>
+        )}
+
+        {!progress && ready && (
+          <div className="warming warming--ready" role="status">
+            <div className="warming__row">
+              <span className="warming__title">{copy.model_ready}</span>
+            </div>
+            <p className="warming__sub">{copy.model_ready_sub}</p>
+          </div>
+        )}
 
         {onEnginePreferenceChange && (
           <div style={{ marginTop: 'var(--sp-2)', marginBottom: 'var(--sp-2)' }}>

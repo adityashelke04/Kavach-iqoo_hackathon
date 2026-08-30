@@ -33,6 +33,17 @@ export interface ModelProgress {
   /** The runtime's own human-readable line. */
   text: string
   done: boolean
+  /**
+   * Megabytes fetched so far, parsed out of the runtime's own progress line.
+   *
+   * §9b asks the app to measure and show its own work, and §4 permits numbers
+   * about the *device* — it is numbers about the *message* that are banned. A
+   * bar alone cannot distinguish "downloading, 40 MB in" from "stuck", and on
+   * the phone that ambiguity cost a tester four minutes of not knowing whether
+   * anything was happening (D22).
+   */
+  fetchedMB: number | null
+  totalMB: number | null
 }
 
 type ProgressListener = (p: ModelProgress) => void
@@ -108,6 +119,24 @@ export function onModelProgress(fn: ProgressListener): () => void {
 
 function emit(p: ModelProgress) {
   for (const fn of listeners) fn(p)
+}
+
+/**
+ * WebLLM's progress line carries the real numbers; it has no structured field
+ * for them. Its shape is like "Fetching param cache[12/38]: 214MB fetched.
+ * 31% completed, 12 secs elapsed." Parsing it is mildly fragile, so every
+ * failure path returns null and the UI simply shows less — never a wrong
+ * number, and never a crash.
+ */
+function parseMB(text: string): { fetchedMB: number | null; totalMB: number | null } {
+  const fetched = /([\d.]+)\s*MB\s+fetched/i.exec(text)
+  const total = /of\s+([\d.]+)\s*MB/i.exec(text)
+  const n = (m: RegExpExecArray | null) => {
+    if (!m?.[1]) return null
+    const v = Number(m[1])
+    return Number.isFinite(v) ? Math.round(v) : null
+  }
+  return { fetchedMB: n(fetched), totalMB: n(total) }
 }
 
 /** Cheap, synchronous-ish capability probe. Never downloads anything (§6). */
@@ -220,7 +249,13 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
     }
 
     const webllm = await import('@mlc-ai/web-llm')
-    emit({ fraction: 0, text: `Preparing ${chosen.label}…`, done: false })
+    emit({
+      fraction: 0,
+      text: `Preparing ${chosen.label}…`,
+      done: false,
+      fetchedMB: null,
+      totalMB: null,
+    })
 
     // Fail loudly and early on a model id this build of WebLLM does not carry,
     // rather than with whatever the runtime says several layers down.
@@ -252,12 +287,19 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
           fraction: typeof r.progress === 'number' ? r.progress : null,
           text: r.text,
           done: false,
+          ...parseMB(r.text ?? ''),
         })
       },
     })
 
     engineReady = true
-    emit({ fraction: 1, text: `${chosen.label} ready`, done: true })
+    emit({
+      fraction: 1,
+      text: `${chosen.label} ready`,
+      done: true,
+      fetchedMB: null,
+      totalMB: null,
+    })
     return engine as unknown as MlcEngine
   })()
 
@@ -271,7 +313,13 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
     // re-downloading. `unloadEngine()` clears it, which is how a user-triggered
     // retry gets a genuinely fresh attempt.
     failedModels.set(chosen.modelId, err as Error)
-    emit({ fraction: null, text: `${chosen.label} could not load`, done: true })
+    emit({
+      fraction: null,
+      text: `${chosen.label} could not load`,
+      done: true,
+      fetchedMB: null,
+      totalMB: null,
+    })
     throw err
   }
 }
@@ -327,7 +375,7 @@ export async function unloadEngine(): Promise<void> {
   // An explicit unload is the user asking for a clean slate, so a model that
   // failed before is allowed one more genuine attempt.
   failedModels.clear()
-  emit({ fraction: null, text: 'Engine unloaded', done: true })
+  emit({ fraction: null, text: 'Engine unloaded', done: true, fetchedMB: null, totalMB: null })
 }
 
 /** Start the download early so the first analysis is not also the first load. */
