@@ -33,7 +33,7 @@ const { MODELS, CEILING_PROBES, DESKTOP_PROBES, pickTier } = await import(
 const { analyze, ENGINE_TIMEOUTS, LOCAL_COLD_LOAD_TIMEOUT_MS } = await import(
   mod('src/detector/orchestrator.ts')
 )
-const { MAX_TOKENS } = await import(mod('src/detector/local.ts'))
+const { MAX_TOKENS, GENERATION_TIMEOUT_MS } = await import(mod('src/detector/local.ts'))
 const { resultFromLlm } = await import(mod('src/detector/llm.ts'))
 const { classifySender } = await import(mod('src/detector/sender.ts'))
 const { prebuiltAppConfig } = await import('@mlc-ai/web-llm')
@@ -138,6 +138,23 @@ check(
 check(
   LOCAL_COLD_LOAD_TIMEOUT_MS > ENGINE_TIMEOUTS.local.first,
   'a cold call still gets more room than a warm one — the download is not generation',
+)
+
+/**
+ * D22: the cold budget covers a several-hundred-megabyte download, and it was
+ * silently bounding generation too. On the iQOO that let a check run past 300
+ * seconds at ~0.3 tokens/second instead of falling back. Generation now has its
+ * own clock, started when the weights are resident.
+ */
+check(
+  GENERATION_TIMEOUT_MS < LOCAL_COLD_LOAD_TIMEOUT_MS,
+  'generation is bounded far tighter than the download it used to share a budget with',
+  `${GENERATION_TIMEOUT_MS}ms vs ${LOCAL_COLD_LOAD_TIMEOUT_MS}ms`,
+)
+check(
+  GENERATION_TIMEOUT_MS <= 60_000,
+  'and tightly enough that someone standing at a stand still gets an answer',
+  `${GENERATION_TIMEOUT_MS}ms`,
 )
 
 /* ------------------------------------------------------------------ */

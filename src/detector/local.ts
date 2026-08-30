@@ -59,6 +59,29 @@ type ProgressListener = (p: ModelProgress) => void
  */
 export const MAX_TOKENS = 500
 
+/**
+ * How long generation may run once the weights are resident — D22.
+ *
+ * **This existed only by accident before, and the accident was unbounded.**
+ * The orchestrator picks one budget for the whole `detect()` call, and a cold
+ * call gets `LOCAL_COLD_LOAD_TIMEOUT_MS` (480s) because it has to cover a
+ * several-hundred-megabyte download. That same number was therefore also
+ * bounding *generation*, so on a device where inference is slow the engine ran
+ * for minutes instead of giving up and letting the deterministic answer stand.
+ *
+ * Measured on the iQOO 15: roughly 0.3 tokens/second, which is about two orders
+ * of magnitude below what a 1B q4f16 model should manage on that hardware. A
+ * ~100-token answer had not arrived after 300 seconds, in the foreground, with
+ * the screen held awake.
+ *
+ * So the download may take as long as it takes — it is progress a person can
+ * see, and abandoning it wastes what the device already paid for — but
+ * generation is bounded from the moment the weights are ready. On expiry the
+ * engine is interrupted and the call fails, the orchestrator falls through, and
+ * the deterministic verdict is shown silently (D2). The person gets an answer.
+ */
+export const GENERATION_TIMEOUT_MS = 45_000
+
 interface MlcEngine {
   chat: {
     completions: {
@@ -415,6 +438,13 @@ export const localDetector: Detector = {
     const onAbort = () => engine.interruptGenerate?.()
     signal.addEventListener('abort', onAbort, { once: true })
 
+    // Generation's own budget, started only now that loading is behind us.
+    let generationTimedOut = false
+    const genTimer = setTimeout(() => {
+      generationTimedOut = true
+      engine.interruptGenerate?.()
+    }, GENERATION_TIMEOUT_MS)
+
     try {
       const completion = await engine.chat.completions.create({
         messages: [
@@ -437,6 +467,14 @@ export const localDetector: Detector = {
 
       if (signal.aborted) throw new Error('aborted')
 
+      // `interruptGenerate` makes the pending call resolve with whatever it had,
+      // so the timeout has to be checked rather than awaited on.
+      if (generationTimedOut) {
+        throw new Error(
+          `on-device generation exceeded ${GENERATION_TIMEOUT_MS}ms — falling back`,
+        )
+      }
+
       const content = completion.choices[0]?.message?.content
       if (typeof content !== 'string' || content.trim() === '') {
         throw new Error('on-device model returned nothing')
@@ -449,6 +487,7 @@ export const localDetector: Detector = {
         latencyMs: Date.now() - startedAt,
       })
     } finally {
+      clearTimeout(genTimer)
       signal.removeEventListener('abort', onAbort)
     }
   },
