@@ -29,3 +29,10 @@ screenshots/
 
 # headless profile used by scripts/test-listen.mjs
 .chrome-listen-profile/
+
+# Android build caches
+android-twa/.gradle/
+android-twa/build/
+android-twa/app/build/
+android-twa/local.properties
+

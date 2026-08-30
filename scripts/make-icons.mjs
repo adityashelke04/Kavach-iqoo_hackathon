@@ -71,35 +71,59 @@ const SHIELD = `
  * to survive. 0.52 keeps the whole shield inside that safe circle with room to
  * spare. The `any` icons are shown as authored, so they can breathe wider.
  */
+const MONO_SHIELD = `
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M24 4L7 11V22C7 33.1 14.3 43.4 24 46C33.7 43.4 41 33.1 41 22V11L24 4Z"
+        stroke="#FFFFFF" stroke-width="2.5" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24 10L12 15.5V23.5C12 31.8 17.1 39.2 24 41.5C30.9 39.2 36 31.8 36 23.5V15.5L24 10Z"
+        stroke="#FFFFFF" stroke-width="1.25" stroke-opacity="0.75" stroke-dasharray="2 2"/>
+  <path d="M24 18L18 23.5V28.5L24 32.5L30 28.5V23.5L24 18Z"
+        fill="#FFFFFF" fill-opacity="0.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="24" cy="25.5" r="2.2" fill="#FFFFFF"/>
+</svg>`.trim()
+
+/**
+ * `fill` is the mark's share of the canvas edge.
+ *
+ * A `maskable` icon is cropped by the platform to whatever shape it likes —
+ * a circle on most Android launchers — and only the middle 80% is guaranteed
+ * to survive. 0.52 keeps the whole shield inside that safe circle with room to
+ * spare. The `any` icons are shown as authored, so they can breathe wider.
+ */
 const ICONS = [
-  { file: 'icon-192.png', size: 192, fill: 0.74 },
-  { file: 'icon-512.png', size: 512, fill: 0.74 },
-  { file: 'icon-maskable-512.png', size: 512, fill: 0.52 },
-  { file: 'apple-touch-icon.png', size: 180, fill: 0.7 },
+  { file: 'icon-96.png', size: 96, fill: 0.74, mono: false },
+  { file: 'icon-192.png', size: 192, fill: 0.74, mono: false },
+  { file: 'icon-512.png', size: 512, fill: 0.74, mono: false },
+  { file: 'icon-maskable-192.png', size: 192, fill: 0.52, mono: false },
+  { file: 'icon-maskable-512.png', size: 512, fill: 0.52, mono: false },
+  { file: 'icon-monochrome-96.png', size: 96, fill: 0.74, mono: true },
+  { file: 'icon-monochrome-512.png', size: 512, fill: 0.74, mono: true },
+  { file: 'apple-touch-icon.png', size: 180, fill: 0.7, mono: false },
 ]
 
-const page = (size, fill) => `<!doctype html><meta charset="utf-8">
+const page = (size, fill, mono = false) => `<!doctype html><meta charset="utf-8">
 <style>
-  html,body{margin:0;padding:0;width:${size}px;height:${size}px;background:${GROUND};
+  html,body{margin:0;padding:0;width:${size}px;height:${size}px;background:${mono ? 'transparent' : GROUND};
             display:flex;align-items:center;justify-content:center;overflow:hidden}
   svg{width:${Math.round(size * fill)}px;height:${Math.round(size * fill)}px;display:block}
-</style>${SHIELD}`
+</style>${mono ? MONO_SHIELD : SHIELD}`
 
 mkdirSync(outDir, { recursive: true })
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 try {
-  for (const { file, size, fill } of ICONS) {
+  for (const { file, size, fill, mono } of ICONS) {
     const ctx = await browser.newContext({
       viewport: { width: size, height: size },
       deviceScaleFactor: 1,
     })
     const p = await ctx.newPage()
-    await p.setContent(page(size, fill), { waitUntil: 'load' })
-    const buf = await p.screenshot({ type: 'png', omitBackground: false })
+    await p.setContent(page(size, fill, mono), { waitUntil: 'load' })
+    const buf = await p.screenshot({ type: 'png', omitBackground: mono })
     writeFileSync(join(outDir, file), buf)
     await ctx.close()
-    console.log(`${green('✓')} ${file} ${dim(`${size}×${size}`)}`)
+    console.log(`${green('✓')} ${file} ${dim(`${size}×${size}${mono ? ' (mono)' : ''}`)}`)
   }
 
   // A vector favicon for the browser tab. Not part of the manifest — desktop

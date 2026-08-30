@@ -40,13 +40,41 @@ export default defineConfig({
         // white circle — a dark square mark on a white disc, which is how a
         // careless PWA announces itself on a home screen. Both purposes ship.
         icons: [
+          { src: '/icons/icon-96.png', sizes: '96x96', type: 'image/png', purpose: 'any' },
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          {
+            src: '/icons/icon-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
           {
             src: '/icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
+          },
+          {
+            src: '/icons/icon-monochrome-96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'monochrome',
+          },
+          {
+            src: '/icons/icon-monochrome-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'monochrome',
+          },
+        ],
+        shortcuts: [
+          {
+            name: 'Check Message',
+            short_name: 'Check',
+            description: 'Scan and verify a suspicious message',
+            url: '/',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
           },
         ],
       },

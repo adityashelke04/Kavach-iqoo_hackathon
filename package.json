@@ -18,7 +18,9 @@
     "test:report": "node scripts/test-report.mjs",
     "test:predict": "node scripts/test-predict.mjs",
     "test:local": "node scripts/test-local.mjs",
-    "test:listen": "node scripts/test-listen.mjs"
+    "test:listen": "node scripts/test-listen.mjs",
+    "build:apk": "node scripts/build-apk.mjs",
+    "install:apk": "powershell -ExecutionPolicy Bypass -File ./scripts/install-apk.ps1"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",
@@ -28,6 +30,8 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@bubblewrap/cli": "^1.25.0",
+    "@bubblewrap/core": "^1.25.0",
     "@tailwindcss/vite": "^4.1.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

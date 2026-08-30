@@ -1,0 +1,53 @@
+{
+  "packageId": "com.kavach.iqoo.twa",
+  "host": "kavach-iqoo-hackathon.vercel.app",
+  "name": "Kavach — scam message checker",
+  "launcherName": "Kavach",
+  "themeColor": "#0B0B0C",
+  "navigationColor": "#0B0B0C",
+  "navigationColorDark": "#0B0B0C",
+  "navigationDividerColor": "#00000000",
+  "navigationDividerColorDark": "#00000000",
+  "backgroundColor": "#0B0B0C",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-maskable-512.png",
+  "monochromeIconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-monochrome-512.png",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "D:\\Orca\\projects\\Kavach-iqoo-hackathon\\Kavach-iqoo_hackathon\\android-keystore\\kavach-release-key.keystore",
+    "alias": "kavach"
+  },
+  "splashScreenFadeOutDuration": 300,
+  "enableSiteSettingsShortcut": true,
+  "orientation": "portrait",
+  "fingerprints": [
+    {
+      "value": "F1:8C:75:39:8B:58:FF:F3:61:3F:ED:B7:76:BE:CC:72:6D:65:D4:A2:D5:47:A7:8D:2B:B5:0C:21:51:5A:83:15"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Check Message",
+      "shortName": "Check",
+      "url": "https://kavach-iqoo-hackathon.vercel.app/",
+      "chosenIconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://kavach-iqoo-hackathon.vercel.app/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  }
+}

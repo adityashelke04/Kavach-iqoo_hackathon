@@ -1,0 +1,179 @@
+/*
+ * Copyright 2019 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import groovy.xml.MarkupBuilder
+
+plugins {
+    id 'com.android.application'
+}
+
+def twaManifest = [
+    applicationId: 'com.kavach.iqoo.twa',
+    hostName: 'kavach-iqoo-hackathon.vercel.app', // The domain being opened in the TWA.
+    launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
+    name: 'Kavach — scam message checker', // The application name.
+    launcherName: 'Kavach', // The name shown on the Android Launcher.
+    themeColor: '#0B0B0C', // The color used for the status bar.
+    themeColorDark: '#0B0B0C', // The color used for the dark status bar.
+    navigationColor: '#0B0B0C', // The color used for the navigation bar.
+    navigationColorDark: '#0B0B0C', // The color used for the dark navbar.
+    navigationDividerColor: '#00000000', // The navbar divider color.
+    navigationDividerColorDark: '#00000000', // The dark navbar divider color.
+    backgroundColor: '#0B0B0C', // The color used for the splash screen background.
+    enableNotifications: true, // Set to true to enable notification delegation.
+    shortcuts: [[name:'Check Message', short_name:'Check', url:'https://kavach-iqoo-hackathon.vercel.app/', icon:'shortcut_0']],
+    splashScreenFadeOutDuration: 300,
+    generatorApp: 'bubblewrap-cli', // Application that generated the Android Project
+    fallbackType: 'customtabs',
+    enableSiteSettingsShortcut: 'true',
+    orientation: 'portrait',
+]
+
+android {
+    compileSdk 34
+    namespace "com.kavach.iqoo.twa"
+
+    defaultConfig {
+        applicationId "com.kavach.iqoo.twa"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        // The name for the application
+        resValue "string", "appName", twaManifest.name
+
+        // The name for the application on the Android Launcher
+        resValue "string", "launcherName", twaManifest.launcherName
+
+        // The URL that will be used when launching the TWA from the Android Launcher
+        def launchUrl = "https://" + twaManifest.hostName + twaManifest.launchUrl
+        resValue "string", "launchUrl", launchUrl
+
+        // The URL the Web Manifest for the Progressive Web App that the TWA points to.
+        resValue "string", "webManifestUrl", 'https://kavach-iqoo-hackathon.vercel.app/manifest.json'
+
+        // The hostname is used when building the intent-filter, so the TWA is able to
+        // handle Intents to open host url of the application.
+        resValue "string", "hostName", twaManifest.hostName
+
+        resValue "color", "colorPrimary", twaManifest.themeColor
+        resValue "color", "colorPrimaryDark", twaManifest.themeColorDark
+        resValue "color", "navigationColor", twaManifest.navigationColor
+        resValue "color", "navigationColorDark", twaManifest.navigationColorDark
+        resValue "color", "navigationDividerColor", twaManifest.navigationDividerColor
+        resValue "color", "navigationDividerColorDark", twaManifest.navigationDividerColorDark
+        resValue "color", "backgroundColor", twaManifest.backgroundColor
+
+        // Defines a provider authority for the Splash Screen
+        resValue "string", "providerAuthority", twaManifest.applicationId + '.fileprovider'
+
+        // The enableNotification resource is used to enable or disable the TrustedWebActivityService
+        resValue "bool", "enableNotification", twaManifest.enableNotifications.toString()
+
+        twaManifest.shortcuts.eachWithIndex { shortcut, index ->
+            resValue "string", "shortcut_name_$index", "$shortcut.name"
+            resValue "string", "shortcut_short_name_$index", "$shortcut.short_name"
+        }
+
+        resValue "integer", "splashScreenFadeOutDuration", twaManifest.splashScreenFadeOutDuration.toString()
+        resValue "string", "generatorApp", twaManifest.generatorApp
+        resValue "string", "fallbackType", twaManifest.fallbackType
+        resValue "bool", "enableSiteSettingsShortcut", twaManifest.enableSiteSettingsShortcut
+        resValue "string", "orientation", twaManifest.orientation
+    }
+
+    signingConfigs {
+        release {
+            def keystoreFile = file("${rootDir}/../android-keystore/kavach-release-key.keystore")
+            if (keystoreFile.exists()) {
+                storeFile keystoreFile
+                storePassword 'kavach2026'
+                keyAlias 'kavach'
+                keyPassword 'kavach2026'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ""
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+task generateShorcutsFile {
+    assert twaManifest.shortcuts.size() < 5, "You can have at most 4 shortcuts."
+    twaManifest.shortcuts.eachWithIndex { s, i ->
+        assert s.name != null, 'Missing `name` in shortcut #' + i
+        assert s.short_name != null, 'Missing `short_name` in shortcut #' + i
+        assert s.url != null, 'Missing `icon` in shortcut #' + i
+        assert s.icon != null, 'Missing `url` in shortcut #' + i
+    }
+
+    def shortcutsFile = new File("$projectDir/src/main/res/xml", "shortcuts.xml")
+
+    def xmlWriter = new StringWriter()
+    def xmlMarkup = new MarkupBuilder(new IndentPrinter(xmlWriter, "    ", true))
+
+    xmlMarkup
+        .'shortcuts'('xmlns:android': 'http://schemas.android.com/apk/res/android') {
+            twaManifest.shortcuts.eachWithIndex { s, i ->
+                'shortcut'(
+                        'android:shortcutId': 'shortcut' + i,
+                        'android:enabled': 'true',
+                        'android:icon': '@drawable/' + s.icon,
+                        'android:shortcutShortLabel': '@string/shortcut_short_name_' + i,
+                        'android:shortcutLongLabel': '@string/shortcut_name_' + i) {
+                    'intent'(
+                            'android:action': 'android.intent.action.MAIN',
+                            'android:targetPackage': twaManifest.applicationId,
+                            'android:targetClass': twaManifest.applicationId + '.LauncherActivity',
+                            'android:data': s.url)
+                    'categories'('android:name': 'android.intent.category.LAUNCHER')
+                }
+            }
+        }
+    shortcutsFile.text = xmlWriter.toString() + '\n'
+}
+
+preBuild.dependsOn(generateShorcutsFile)
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

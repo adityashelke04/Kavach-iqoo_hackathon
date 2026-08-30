@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kavach.iqoo.twa",
+      "sha256_cert_fingerprints": [
+        "F1:8C:75:39:8B:58:FF:F3:61:3F:ED:B7:76:BE:CC:72:6D:65:D4:A2:D5:47:A7:8D:2B:B5:0C:21:51:5A:83:15"
+      ]
+    }
+  }
+]
