@@ -232,9 +232,19 @@ export async function analyze(
   // A cold on-device call is mostly download, not inference — budget for that
   // rather than abandoning a nearly-complete one. Warm calls, and every cloud
   // call, use the normal budget.
-  // -1 selects the two-phase deadline: the download may take minutes, the
-  // generation that follows it may not (D22).
-  const firstBudget = preference === 'local' ? -1 : budgets.first
+  /**
+   * -1 selects the two-phase deadline: the download may take minutes, the
+   * generation that follows it may not (D22).
+   *
+   * Only for the *real* on-device engine. The two phases are separated by
+   * `isModelLoaded()`, which reports on WebLLM's singleton — a fact about
+   * nothing at all when a test has substituted a fake detector. Applying it
+   * there left an injected engine waiting out the full download budget, which
+   * is how `test:cancel` came to assert 480,009ms against a stub that has no
+   * weights to load.
+   */
+  const usingRealLocalEngine = preference === 'local' && !engineOverride?.local
+  const firstBudget = usingRealLocalEngine ? -1 : budgets.first
 
   onPhase?.('thinking')
   let llm = await runOnce(
