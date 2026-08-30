@@ -55,8 +55,8 @@ try {
     iconUrl: 'http://127.0.0.1:8099/icons/icon-512.png',
     maskableIconUrl: 'http://127.0.0.1:8099/icons/icon-maskable-512.png',
     monochromeIconUrl: 'http://127.0.0.1:8099/icons/icon-monochrome-512.png',
-    appVersionName: '1.0.0',
-    appVersionCode: 1,
+    appVersionName: '1.3.0',
+    appVersionCode: 4,
     signingKey: {
       path: keystorePath,
       alias: 'kavach'

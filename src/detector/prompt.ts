@@ -106,16 +106,54 @@ export interface PromptContext {
 /**
  * Render what a deterministic keyword scan already found, as context for the
  * model — never as a verdict, and never with a number (D15).
+ *
+ * **Both halves of the scan, since D21.** This used to render the matched
+ * manipulation phrases and nothing else. For a genuine SBI debit alert the
+ * entire briefing read *"found possible signs of: authority (matched: "SBI")"*
+ * — one incriminating detail about a legitimate message, with the four
+ * legitimacy markers the same scan had matched, and the scan's own `safe`
+ * conclusion, both withheld. The model convicted, which is what it had been
+ * shown. A briefing that carries only the prosecution's half is not context.
  */
 export function renderBriefing(briefing: RuleBriefing): string {
-  const lines = briefing.tactics.map(
-    (t) => `${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+  const parts: string[] = ['A separate keyword scan already ran on this message.']
+
+  if (briefing.tactics.length > 0) {
+    const lines = briefing.tactics.map(
+      (t) => `- ${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+    )
+    parts.push('Possible signs of manipulation it matched:', lines.join('\n'))
+  } else {
+    parts.push('It matched no signs of manipulation.')
+  }
+
+  // `?? []` / `?? null` guard a briefing built before D21 added the second half
+  // — a stale cached bundle, or a caller assembling one by hand. Prompt building
+  // runs inside `detect()`, and §6's fourth non-negotiable is that an engine
+  // returns a result or rejects cleanly; a TypeError here would take the engine
+  // down for a message it could otherwise have read.
+  const markers = briefing.legitimacyMarkers ?? []
+  if (markers.length > 0) {
+    parts.push(
+      'Markers of a genuine message it also matched. These are things real banks, couriers and services say, and scams generally do not:',
+      markers.map((m) => `- "${m}"`).join('\n'),
+    )
+  }
+
+  const assessment = briefing.assessment ?? null
+  if (assessment !== null) {
+    parts.push(
+      assessment === 'looks-legitimate'
+        ? 'Weighing both lists, the scan concluded this message looks legitimate.'
+        : 'Weighing both lists, the scan concluded this message is worth concern.',
+    )
+  }
+
+  parts.push(
+    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or correct it. It can miss a scam written in wording nobody has listed yet, so add anything it missed. It can also match an ordinary phrase in a perfectly normal message, so a match is not proof: an institution named in a message that genuinely came from that institution is not impersonating anyone, and a published helpline the message tells you to call is not the same as a message asking you for a code or a payment.',
   )
-  return [
-    'A separate keyword scan already ran on this message and found possible signs of:',
-    lines.join('; '),
-    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or add to this. Check specifically for anything it would have missed.',
-  ].join('\n')
+
+  return parts.join('\n')
 }
 
 /**

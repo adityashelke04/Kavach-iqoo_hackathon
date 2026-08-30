@@ -14,8 +14,8 @@
   "iconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-512.png",
   "maskableIconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-maskable-512.png",
   "monochromeIconUrl": "https://kavach-iqoo-hackathon.vercel.app/icons/icon-monochrome-512.png",
-  "appVersionName": "1.0.0",
-  "appVersionCode": 1,
+  "appVersionName": "1.3.0",
+  "appVersionCode": 4,
   "signingKey": {
     "path": "D:\\Orca\\projects\\Kavach-iqoo-hackathon\\Kavach-iqoo_hackathon\\android-keystore\\kavach-release-key.keystore",
     "alias": "kavach"

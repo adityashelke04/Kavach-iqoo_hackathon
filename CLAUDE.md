@@ -58,7 +58,15 @@ Do not read the whole spec first. Do not build ahead of your phase.
 ```bash
 npm run dev           # local dev server
 npm run build         # production build
-npm run test:corpus   # corpus regression + false-positive gate (hard gate)
+npm run test:corpus   # corpus regression through the RULES ENGINE ONLY (hard gate)
+npm run test:cloud    # the cloud engine: api/analyze.ts duplicates the prompt
+                      # by hand, so this compares the two copies and does a
+                      # live round trip when OPENROUTER_API_KEY is set (skips
+                      # cleanly without one). Two divergences have shipped (D21)
+npm run test:falsepos # the same false-positive question, through the pipeline
+                      # that actually ships: rules + model + fusion, against
+                      # stub engines. You need both — test:corpus was green
+                      # while a real SBI alert was being called a scam (D21)
 npm run test:smoke    # renders every screen against real engine output
 npm run test:fusion   # LLM JSON contract + rules/LLM fusion (D12)
 npm run test:feedback # adaptive weighting, and that it cannot break the gate (D14)
@@ -70,6 +78,10 @@ npm run test:listen   # Listen mode microphone lifecycle: nothing else holds a
                       # capture stream when recognition starts, restarts back
                       # off and give up, and a stopped call cannot follow you
                       # to the next one (D19)
+npm run test:cancel   # exhibition latency + cancellation: no device auto-picks
+                      # the heavy tier, every tier is a real WebLLM model, and a
+                      # check cancelled before or during flight actually stops
+                      # (D20)
 npm run test:offline  # PWA: manifest installable, every icon really served,
                       # worker takes control, and a cold launch with the network
                       # cut still reaches a correct verdict (P8)
@@ -115,10 +127,42 @@ opens the microphone at a time.** Do not reintroduce a `getUserMedia` capture to
 drive the equalizer; that is what made Android report "Chrome is currently
 recording audio". `test:listen` guards it.
 
+**`api/analyze.ts` duplicates the prompt from `src/detector/prompt.ts` by hand**
+— it cannot import from `src/`. Change one, change the other, in the same commit.
+This has already drifted twice (D20's token budget, D21's briefing), and both
+times the cloud engine silently kept shipping the old behaviour. `test:cloud`
+compares them; do not rely on the "kept in sync by hand" comments.
+
+A real bank SMS was being called a scam — fixed under **D21**, read it before
+touching `fuse.ts`, `verdict.ts` or `toBriefing`. The rules engine was never
+wrong; four things downstream of it were. The briefing now carries **both halves
+of the scan** (the legitimacy markers as well as the suspicious phrases) —
+never send a model only the incriminating half again. The model's tactics are
+**screened** against the deterministic subtotals before merging. And §4 has a
+fifth override rule: **`danger` needs corroboration**, capped to `caution` when
+the deterministic engine concluded `safe` and actively disagrees. Silence is not
+disagreement — that distinction is what keeps novel-scam detection alive, so do
+not simplify it away. `test:falsepos` guards all of it, and its third group
+(every corpus scam re-sent through a registered header) is what stops anyone
+"fixing" this by trusting the DLT header, which §5.5 forbids.
+
+Model tiers and cancellation were rebuilt under **D20** — read it before
+touching `models.ts`, `pickTier`, or anything that starts an analysis. Two rules
+came out of it. **No device selects the `max` tier for itself**: `pickTier`
+returns only `low` or `standard`, and `max` (now Qwen2.5-1.5B, not the 3B) is
+reachable only through `setPreferredTier`. And **every analysis is started with
+an `AbortSignal` that something can actually pull** — `App` owns one per run,
+leaving `/check` cancels via an effect on `path` (not the back arrow: Android's
+back button fires `popstate`), and Check has a Cancel button. `test:cancel`
+guards both. This closes the abort half of P10; the triple-tap failsafe is what
+remains there.
+
 P3 (CloudDetector) is done. P8 (PWA + offline) is built and passes
 `test:offline`, but like P2 and P7 it is **unverified on the phone** — all three
 are blocked on one ten-minute on-device session, scripted in §11 under "The one
-on-device session". Do that before building anything else.
+on-device session". Do that before building anything else. D20's latency numbers
+are unproven there too: §8.1's load-time and tokens/sec columns are still empty
+and only the iQOO can fill them.
 
 Still open after it: P9 (device telemetry panel), P10 (orchestrator hardening +
 triple-tap failsafe), P12 (tuning, rehearsal, freeze). See SPEC.md §11.

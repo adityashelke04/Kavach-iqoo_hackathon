@@ -88,11 +88,26 @@ export const MODELS: Record<Tier, ModelSpec> = {
   },
   max: {
     tier: 'max',
-    modelId: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
-    label: 'Qwen2.5 3B Instruct',
-    params: '3B',
-    vramMB: 2505,
-    why: 'Best structured-output quality that has a realistic chance of loading inside Chrome on Android. This is the tier the pitch exercises.',
+    modelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+    label: 'Qwen2.5 1.5B Instruct',
+    params: '1.5B',
+    vramMB: 1630,
+    /**
+     * WAS Qwen2.5-3B UNTIL D20. Do not put it back without reading that entry.
+     *
+     * The 3B is the better analyst and it is not close. It is also 2.5 GB of
+     * weights that a booth has to download over shared conference wifi before
+     * the first verdict exists, and then roughly twice the decode work per
+     * verdict — and this tier was being picked *automatically* on any device
+     * with a roomy buffer cap, so it was not an opt-in stage flourish, it was
+     * what a visitor got. An exhibition visitor gives you seconds.
+     *
+     * Qwen2.5-1.5B keeps the family whose structured-output behaviour the JSON
+     * contract was proved against, at ~65% of the weights and well under half
+     * the per-token cost. It is still visibly more device work than `standard`,
+     * which is what this tier is for.
+     */
+    why: 'The heavy tier, chosen so it still finishes while someone is standing there. Same family as the 3B, well under half the work per verdict.',
   },
 }
 
@@ -104,6 +119,14 @@ export const MODELS: Record<Tier, ModelSpec> = {
  * the iQOO twice — once cold, once from cache — and watching it generate.
  */
 export const CEILING_PROBES: ModelSpec[] = [
+  {
+    tier: 'max',
+    modelId: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
+    label: 'Qwen2.5 3B Instruct',
+    params: '3B',
+    vramMB: 2505,
+    why: 'The old Max tier, demoted by D20 for exhibition latency. The best analyst here — reachable on a laptop, too slow to stand in front of.',
+  },
   {
     tier: 'max',
     modelId: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
@@ -184,12 +207,23 @@ export interface DeviceLimits {
 }
 
 /**
- * Choose the heaviest tier this device can plausibly carry.
+ * Choose the tier this device should load *by itself*.
  *
- * Conservative on purpose. §9 rewards genuine device work and the Max tier
- * exists to be exercised, but the honest way to earn that is to *measure* the
- * ceiling once on the real phone and pin the tier, not to gamble on stage.
- * A user can always override in Settings (D7).
+ * **This function never returns `max`, on any hardware.** §8.1 has said since
+ * P7 that `standard` is the default and that `max` is "deliberately exercised"
+ * — and until D20 this function contradicted it, promoting any device with a
+ * roomy WebGPU buffer cap straight to the heaviest model. That is how someone
+ * tapping a sample message ended up waiting on a multi-gigabyte download and a
+ * 3B generation they never asked for: nothing was broken, the device had simply
+ * volunteered itself for the stage tier.
+ *
+ * Capability is not consent. A device *being able* to carry `max` is a reason
+ * to offer it, not a reason to spend a visitor's first thirty seconds on it.
+ * `max` is now reachable only through `setPreferredTier` — the Settings
+ * override D7 always promised, and `/dev/local`'s picker.
+ *
+ * So the question here narrowed to one thing: is this device weak enough that
+ * even `standard` is a bad idea?
  */
 export function pickTier(limits: DeviceLimits): Tier {
   const bindingMB =
@@ -197,13 +231,14 @@ export function pickTier(limits: DeviceLimits): Tier {
       ? null
       : limits.maxStorageBufferBindingSize / (1024 * 1024)
 
-  // The documented Android ceiling. At or below it, a 3B model's largest
-  // binding will not fit, so do not attempt one.
-  if (bindingMB !== null && bindingMB <= 128) return 'standard'
-
+  // A genuinely memory-poor phone. `low` is the emergency tier and this is the
+  // emergency: 879 MB of weights on a 3 GB device is how a tab gets killed.
   if (limits.deviceMemoryGB !== null && limits.deviceMemoryGB < 4) return 'low'
 
-  if (bindingMB !== null && bindingMB >= 1024) return 'max'
+  // The documented Android ceiling (see the file header). `standard`'s largest
+  // binding fits under it, so this is not a downgrade — it is the answer either
+  // way, and it stays written down because the reasoning is the whole point.
+  if (bindingMB !== null && bindingMB <= 128) return 'standard'
 
   return 'standard'
 }

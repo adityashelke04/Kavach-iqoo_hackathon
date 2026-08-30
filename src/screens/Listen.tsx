@@ -356,6 +356,29 @@ export function Listen({
    */
   const runGenRef = useRef(0)
 
+  /**
+   * The deep analysis in flight, so that invalidating it also *stops* it (D20).
+   *
+   * `runGenRef` was D19's fix and it solved D19's problem: a result from a
+   * finished call could no longer land on the next one. It is a guard on the
+   * screen, not on the work — the generation it disowns keeps running to
+   * completion on the GPU. Leaving Listen mid-analysis therefore left an
+   * on-device model generating for a screen that had been closed, which is the
+   * same GPU the Check screen needs next, and the reason a check opened
+   * afterwards appeared to hang.
+   *
+   * Bumped and aborted together, always. A generation nobody will read is not
+   * worth a phone's battery.
+   */
+  const deepAbortRef = useRef<AbortController | null>(null)
+
+  /** Invalidate any deep analysis in flight, and stop it. */
+  const invalidateDeepRun = useCallback(() => {
+    runGenRef.current += 1
+    deepAbortRef.current?.abort()
+    deepAbortRef.current = null
+  }, [])
+
   const stopAudioMeter = useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current)
@@ -458,7 +481,15 @@ export function Listen({
       setAnalyzing(true)
       try {
         if (deep) {
-          const res = await analyze({ text: buffer, channel: 'voice' }, enginePreference)
+          // One deep run at a time, and it ends when the session does.
+          deepAbortRef.current?.abort()
+          const controller = new AbortController()
+          deepAbortRef.current = controller
+          const res = await analyze(
+            { text: buffer, channel: 'voice' },
+            enginePreference,
+            controller.signal,
+          )
           if (gen !== runGenRef.current) return
           setResult(res)
           if (res.verdict === 'danger') setInterrupted(true)
@@ -473,7 +504,10 @@ export function Listen({
           if (res.verdict === 'danger') setInterrupted(true)
         }
       } finally {
-        if (gen === runGenRef.current) setAnalyzing(false)
+        if (gen === runGenRef.current) {
+          deepAbortRef.current = null
+          setAnalyzing(false)
+        }
       }
     },
     [enginePreference],
@@ -685,7 +719,7 @@ export function Listen({
    * that analysis must not be allowed to land on whatever comes next.
    */
   const clearSession = useCallback(() => {
-    runGenRef.current += 1
+    invalidateDeepRun()
     setResult(null)
     setInterrupted(false)
     setAnalyzing(false)
@@ -696,7 +730,7 @@ export function Listen({
     lastFastRunAt.current = 0
     lastSlowRunAt.current = 0
     failureCountRef.current = 0
-  }, [])
+  }, [invalidateDeepRun])
 
   const reset = useCallback(() => {
     stop()
@@ -766,8 +800,9 @@ export function Listen({
   useEffect(() => {
     return () => {
       wantRunning.current = false
-      // Leaving the screen invalidates any analysis still in flight.
-      runGenRef.current += 1
+      // Leaving the screen invalidates any analysis still in flight — and, since
+      // D20, ends it rather than merely disowning it.
+      invalidateDeepRun()
       if (simTimerRef.current !== null) {
         window.clearInterval(simTimerRef.current)
         simTimerRef.current = null
@@ -779,7 +814,7 @@ export function Listen({
       stopAudioMeter()
       teardownRecognition()
     }
-  }, [stopAudioMeter, teardownRecognition])
+  }, [stopAudioMeter, teardownRecognition, invalidateDeepRun])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({

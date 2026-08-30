@@ -277,13 +277,35 @@ function describeExplanation(
 
 // --- The engine -----------------------------------------------------------
 
-export function analyzeWithRules(
-  input: DetectionInput,
-  senderSignal?: SenderSignal,
-): DetectionResult {
-  const startedAt = Date.now()
+/**
+ * What the deterministic scan saw, before any threshold is applied.
+ *
+ * Split out of `analyzeWithRules` for D21. The scan has always computed both
+ * halves of the picture — the phrases that look like manipulation, and the
+ * legitimacy markers that argue against it — and then thrown the second half
+ * away, keeping only a single scalar `confidence`. That scalar cannot express
+ * disagreement: "I found nothing" and "I found four separate signs this is a
+ * genuine bank alert" are both 0.
+ *
+ * Both halves are now reachable, because two callers need them:
+ *
+ * - `toBriefing` — so the LLM is told what the scan found *for* the message as
+ *   well as against it. Sending only the positives was priming it to convict.
+ * - `fuse` — so the negative defence §8.3 describes ("subtracted BEFORE the
+ *   presence check, so a genuine bank message never registers extraction at
+ *   all") applies to the LLM's tactics too, and not only to the scan's own.
+ */
+export interface DeterministicScan {
+  /** Positives minus negatives, per tactic, before the presence threshold. */
+  subtotals: Record<TacticName, number>
+  evidenceByTactic: Record<TacticName, Evidence[]>
+  /** Legitimacy phrases matched, verbatim from the text. */
+  legitimacyMarkers: string[]
+  globalPenalty: number
+}
+
+export function scanDeterministically(input: DetectionInput): DeterministicScan {
   const text = input.text
-  const sender = senderSignal ?? classifySender(input.sender)
 
   const subtotals: Record<TacticName, number> = {
     authority: 0,
@@ -314,13 +336,31 @@ export function analyzeWithRules(
   // message never registers extraction at all rather than merely scoring
   // lower. This is the false-positive defence (§8.3).
   let globalPenalty = 0
+  const legitimacyMarkers: string[] = []
   for (const neg of NEGATIVES) {
     const hits = collect(text, [neg])
     if (hits.length === 0) continue
     const total = hits.reduce((s, h) => s + h.w, 0)
     if (neg.tactic) subtotals[neg.tactic] -= total
     else globalPenalty += total * 0.06
+    for (const h of hits) {
+      if (!legitimacyMarkers.includes(h.text)) legitimacyMarkers.push(h.text)
+    }
   }
+
+  return { subtotals, evidenceByTactic, legitimacyMarkers, globalPenalty }
+}
+
+export function analyzeWithRules(
+  input: DetectionInput,
+  senderSignal?: SenderSignal,
+): DetectionResult {
+  const startedAt = Date.now()
+  const text = input.text
+  const sender = senderSignal ?? classifySender(input.sender)
+  const channel = input.channel ?? 'text'
+
+  const { subtotals, evidenceByTactic, globalPenalty } = scanDeterministically(input)
 
   const tactics: Tactic[] = []
   let weighted = 0
@@ -393,7 +433,10 @@ export const ruleDetector: Detector = {
  * rules found nothing — an empty briefing paragraph in the prompt is noise,
  * not information.
  */
-export function toBriefing(result: DetectionResult): RuleBriefing | undefined {
+export function toBriefing(
+  result: DetectionResult,
+  input?: DetectionInput,
+): RuleBriefing | undefined {
   const tactics = result.tactics
     .filter((t) => t.evidence.length > 0)
     .map((t) => ({
@@ -401,5 +444,30 @@ export function toBriefing(result: DetectionResult): RuleBriefing | undefined {
       matchedPhrases: t.evidence.map((e) => e.phrase),
     }))
 
-  return tactics.length > 0 ? { tactics } : undefined
+  /**
+   * The other half of the scan — D21.
+   *
+   * Until D21 this function returned the suspicious phrases and nothing else,
+   * and `renderBriefing` opened with "a separate keyword scan already ran and
+   * found possible signs of: ...". For a genuine SBI debit alert that briefing
+   * read, in full: *authority (matched: "SBI")*. We were handing a 1B model one
+   * incriminating detail about a legitimate message, withholding the four
+   * legitimacy markers the same scan had just matched — "do not share OTP",
+   * "Avl Bal", the 1800 number, "debited from" — and withholding that the scan's
+   * own conclusion was `safe`. The model did what it was primed to do.
+   *
+   * A briefing is only worth the name if it carries the reading, not the
+   * prosecution's half of it.
+   */
+  const legitimacyMarkers = input ? scanDeterministically(input).legitimacyMarkers : []
+
+  // Nothing at all to say: no suspicious phrases and no legitimacy markers.
+  // An empty briefing paragraph in the prompt is noise, not information.
+  if (tactics.length === 0 && legitimacyMarkers.length === 0) return undefined
+
+  return {
+    tactics,
+    legitimacyMarkers,
+    assessment: result.verdict === 'safe' ? 'looks-legitimate' : 'has-concerns',
+  }
 }

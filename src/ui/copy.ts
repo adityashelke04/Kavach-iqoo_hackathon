@@ -23,6 +23,9 @@ export const copy = {
   cta_clear: 'Clear',
   cta_edit: 'Edit',
   cta_done: 'Done',
+  // Plain, and not an apology (D11). "Stop" would read as an alarm; "Cancel"
+  // is what the button does.
+  cta_cancel: 'Cancel',
   too_short: 'Paste a bit more of the message',
   truncated: 'Long message — we checked the first part',
   try_example: 'Or try an example',

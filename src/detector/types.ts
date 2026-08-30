@@ -29,6 +29,17 @@ export interface RuleBriefing {
     /** Exact phrases the deterministic scan matched, verbatim from the text. */
     matchedPhrases: string[]
   }[]
+  /**
+   * Legitimacy markers the same scan matched, verbatim — D21.
+   *
+   * The scan has always computed these (§8.3's `NEGATIVES`, "subtracted BEFORE
+   * the presence check, so a genuine bank message never registers extraction at
+   * all"), and the briefing used to discard them. Sending a model only the
+   * incriminating half of a reading is not briefing it; it is leading it.
+   */
+  legitimacyMarkers: string[]
+  /** The deterministic engine's own conclusion, so the model knows it disagrees. */
+  assessment: 'looks-legitimate' | 'has-concerns'
 }
 
 /**

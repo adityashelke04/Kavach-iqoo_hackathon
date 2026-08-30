@@ -287,6 +287,31 @@ Rule 4 is the one that protects the demo: a verdict we cannot justify on screen
 is worse than no verdict. Note that a high-risk sender is itself something we can
 show (the SenderCard, §10.6), so it satisfies rule 4's requirement on its own.
 
+#### Override rule 5 — corroboration for danger (D21)
+
+A `danger` verdict may not rest on one engine's unsupported reading. When the
+deterministic engine concluded `safe`, the fused confidence is capped just below
+the `danger` threshold unless one of these holds:
+
+- the sender is high-risk **and** the deterministic engine itself found the
+  `authority` tactic (§5.5's impersonation mismatch, established at both ends);
+- the deterministic engine matched **no** legitimacy marker (§8.3 `NEGATIVES`)
+  **and** the model located a concrete `extraction` with evidence resolved
+  verbatim in the message;
+- the deterministic engine did not conclude `safe` in the first place.
+
+**Silence is not disagreement.** A scan that matched nothing is not contradicting
+the model, so the novel-scam path D12/D15 exist for stays open. A scan that
+matched legitimacy markers *is* contradicting it. All 21 corpus scams match zero
+legitimacy markers; 12 of 19 legitimate messages match at least one.
+
+Implemented as `capUncorroborated` in `verdict.ts` and applied in `fuse.ts`. It
+caps the **confidence**, not the verdict, so `validateResult`'s invariant —
+`verdict === decideVerdict(confidence, tactics, sender)` — still holds. Gate:
+`npm run test:falsepos`.
+
+
+
 ### Tie-breaking and degenerate input
 
 | Input | Behaviour |
@@ -505,6 +530,15 @@ a real header is exactly the case where our text analysis has to still work.
 
 **Rule:** the sender signal may raise the verdict decisively. It may only lower
 it modestly.
+
+**D21 adds one narrow exception, and it is not a free pass.** `authority` means,
+per §5, borrowing an institution's power. A message that arrives through that
+institution's own registered header and names it is not borrowing anything, so
+`authority` alone from a registered sender is not a finding and is dropped —
+**only** when it is the sole surviving tactic. A scam pushed through a misused
+header keeps its urgency, isolation or extraction, so it keeps its authority card
+and stays a scam. `test:falsepos` re-sends every corpus scam through
+`VM-SBIINB` to hold that line.
 
 #### Sender is optional everywhere
 
@@ -732,12 +766,27 @@ made, not reporting a failure.
 | `cloud`, reconsideration call | 15,000 ms | Abort, keep the pre-reconsideration answer |
 | `rules` | — | Synchronous, no timeout possible |
 
+A cold on-device call — one where the weights are not yet resident — is mostly
+download rather than generation, and gets `LOCAL_COLD_LOAD_TIMEOUT_MS` (480,000
+ms) instead of the 120,000 above. D20 brought that down from 900,000: fifteen
+minutes was sized for a 2.5 GB `max` download that is no longer automatic, and a
+ceiling nobody can reach is indistinguishable from no ceiling to the person
+watching it.
+
 These budgets are deliberately generous (a carry-forward of D13's reasoning,
 now serving D15 instead): since nothing is shown until the LLM path resolves
 or fails, a short timeout would only throw away a genuine answer — or a
 genuine correction from the reconsideration pass — that the device already
 paid for. The numbers live in one constant, `ENGINE_TIMEOUTS`, in
 `orchestrator.ts`.
+
+**Abort is a real path, not a documented one (D20).** Every engine has always
+honoured its `AbortSignal`; until D20 `App` passed `undefined`, so no user
+action could stop a run. The signal is now owned per-run by `App`, cancelled by
+leaving `/check` (via an effect on the route, so Android's back button counts)
+and by a Cancel control on the Check screen, and a cancelled analysis falls
+through to step 8 like any other engine that did not answer — silently, per D2.
+Gate: `npm run test:cancel`.
 
 ---
 
@@ -954,21 +1003,33 @@ loads — including with the network fully off — read from disk.
 Three tiers, declared in one config table in `src/detector/models.ts`. The tier
 is user-selectable in Settings; `standard` is the default.
 
+**`standard` is the default in code, not only in prose (D20).** `pickTier` never
+returns `max` on any hardware — it decides only whether a device is weak enough
+to need `low`. `max` is reached exclusively through `setPreferredTier`. Until
+D20 a roomy WebGPU buffer cap promoted a device to `max` by itself, which is how
+a visitor tapping a sample message ended up paying for a download and a
+generation nobody had chosen. Capability is not consent.
+
 | Tier | Class | Role | Notes |
 |---|---|---|---|
-| `low` | ≈0.5B | Emergency fallback | Only if `standard` will not load on the device. Weakest reasoning. |
-| `standard` | ≈1B | **Default** | The demo-safe balance of latency and quality. |
-| `max` | ≈3B | Pitch / heavy | Deliberately exercised on stage (§9, §13). Slower, noticeably more device work. |
+| `low` | ≈1B | Emergency fallback | Only if `standard` will not load on the device. Weakest reasoning. |
+| `standard` | ≈1B | **Default** | The demo-safe balance of latency and quality. The only tier a device ever selects for itself. |
+| `max` | ≈1.5B | Pitch / heavy | **Opt-in only.** Deliberately exercised on stage (§9, §13). Noticeably more device work, and still finishes while someone is standing there (D20). |
 
 Exact model IDs are chosen at P7 from the WebLLM prebuilt list and **written
 into this table at that time**, together with measured numbers, so no later
 session re-benchmarks:
 
-| Tier | Model ID | Download size | Load time (iQOO 15) | Tokens/sec | Fill after P7 |
+| Tier | Model ID | Declared VRAM | Load time (iQOO 15) | Tokens/sec | Fill after P7 |
 |---|---|---|---|---|---|
-| `low` | _TBD_ | _TBD_ | _TBD_ | _TBD_ | ☐ |
-| `standard` | _TBD_ | _TBD_ | _TBD_ | _TBD_ | ☐ |
-| `max` | _TBD_ | _TBD_ | _TBD_ | _TBD_ | ☐ |
+| `low` | `gemma3-1b-it-q4f16_1-MLC` | 711 MB | _TBD_ | _TBD_ | ☐ |
+| `standard` | `Llama-3.2-1B-Instruct-q4f16_1-MLC` | 879 MB | _TBD_ | _TBD_ | ☐ |
+| `max` | `Qwen2.5-1.5B-Instruct-q4f16_1-MLC` | 1,630 MB | _TBD_ | _TBD_ | ☐ |
+
+The model IDs and the VRAM column are MLC's own declared figures, read out of
+`prebuiltAppConfig` and asserted by `npm run test:cancel`. **Load time and
+tokens/sec are still empty and can only be filled from the iQOO** — that is step
+2 of §11's on-device session, and no laptop reading substitutes for it.
 
 Switching tiers triggers a fresh download. That is acceptable and is itself a
 demonstrable moment (a visible, honest cost of running locally).
@@ -993,7 +1054,9 @@ context window that fits a 4,000-character message plus the prompt.
 #### Generation parameters
 
 - `temperature: 0.1` — this is a classification task, not creative writing.
-- `max_tokens: 500` — enough for the JSON, tight enough to stay fast.
+- `max_tokens: 500` — enough for the JSON, tight enough to stay fast. Exported
+  as `MAX_TOKENS` from `local.ts` and asserted by `test:cancel`: it had drifted
+  to 700 and nothing caught it (D20).
 - Response format: JSON, requested both via the API's JSON mode where supported
   and by instruction in the prompt.
 
@@ -1016,6 +1079,15 @@ works before any UI depends on it.
 ---
 
 ### §8.2 · `CloudDetector` — OpenRouter
+
+**The prompt lives twice, and a gate holds the two copies together (D21).**
+`api/analyze.ts` cannot import from `src/`, so `SYSTEM_PROMPT`, `TACTIC_GUIDE`,
+`VOICE_NOTE`, `renderBriefing`, `renderReconsideration` and `buildUserPrompt` are
+duplicated there by hand. That duplication has already shipped two divergences —
+D20's token budget and D21's briefing — so **`npm run test:cloud` compares them
+directly**. If you change anything about the prompt in `src/detector/prompt.ts`,
+change it in `api/analyze.ts` in the same commit; the gate will tell you if you
+forget, which is the only reason the duplication is survivable.
 
 `src/detector/cloud.ts`
 
@@ -2314,8 +2386,11 @@ model has loaded — and on a device that has never run one, "loading" includes
 downloading it. That is exactly why step 2 below comes before step 4: warm the
 cache at `/dev/llm` deliberately, rather than discovering it during a demo. This
 was confirmed on the deployed build, where a laptop-class GPU picked the `max`
-tier and spent minutes fetching Qwen2.5-3B before its first verdict. The phone
-should pick `standard` instead — which is the reading step 2 asks you to record.
+tier and spent minutes fetching Qwen2.5-3B before its first verdict. **That
+specific behaviour is fixed — D20 stopped any device auto-selecting `max`, and
+`max` is now a 1.5B — so every device, phone or laptop, should now report
+`standard` at step 2.** Record the buffer-cap number anyway: it is what §8.1's
+table wants, and it is what decides whether `max` is worth offering at all.
 
 1. **`/dev/probe`** — confirm `isSecureContext` is true and WebGPU is present.
    If this fails nothing below can pass; stop and read the secure-context trap
@@ -2371,12 +2446,29 @@ session needs to know that is not already in this document.
 | P2 | built, UNVERIFIED | `/dev/llm` on the deployed URL runs the spike. **Someone has to open it on the iQOO** — this is the go/no-go the whole on-device pitch rests on and it is the oldest open item in the project. `@litert-lm/core@0.16.0` cannot be used: the published npm tarball is one file, 1.5 KB, no code and no wasm, so the LiteRT-LM browser binding is announced but not shipped. MediaPipe `tasks-genai` is the Google on-device LLM path that actually runs, and it is the second button on that page. |
 | P7 | built, UNVERIFIED on device | `local.ts` — WebLLM, singleton engine, preload on app open, tier from the measured WebGPU buffer cap, parse through the shared `llm.ts`. Exit criterion still needs the iQOO: an on-device verdict, then a reload proving the second load comes from cache. §8.1's measurement table is still empty because those numbers have to come from the phone. |
 | P8 | built, UNVERIFIED on device | Icons generated (`npm run icons`), manifest hardened, fonts runtime-cached so the offline run looks like the online one, install offer on Home, and Home's privacy line now changes wording when the network goes. New gate: `npm run test:offline`. Two production-only bugs closed on the way: the manifest had no icons at all, and `vercel.json` would have rewritten `/icons/*` to `index.html`. Playwright (`playwright-core` + the system Chrome channel, no browser download) is now the driver for the new scripts; `mobile-check.mjs` keeps its own CDP client on purpose. |
+| D21 cloud | 2026-08-30 | **The cloud engine was still shipping the bug.** `api/analyze.ts` duplicates the prompt by hand (it cannot import from `src/`) and D21 had only fixed the `src/` copy — as D20 had only fixed `src/`'s `max_tokens`. Verified live: the old briefing made the model invent three tactics on a genuine SBI alert, and §4 rule 2 turns three tactics into `danger` whatever the confidence. Both copies aligned; the endpoint no longer drops a markers-only briefing. New gate `npm run test:cloud` compares the two copies and runs a live round trip when `OPENROUTER_API_KEY` is present (skipped cleanly without one). Cloud endpoint confirmed live and correct on production. |
+| D21 fix | 2026-08-30 | **False positive on a real bank SMS.** Reported from the phone: the Check screen's own SBI sample, from `VM-SBIINB`, came back "This is a scam". Rules was right all along (`safe` @ 0.00); four defects sat downstream. `toBriefing` sent the model only the incriminating half of the scan; `fuseConfidence` is monotone in `rules`, so a 0 could not express disagreement; `mergeTactics` unioned the model's tactics in unscreened, bypassing §8.3's negative defence; and `danger` had no corroboration requirement, so **all 19 legitimate corpus messages** reached danger against one over-eager model. Fixed by carrying both halves of the scan into the briefing, screening LLM tactics against the deterministic subtotals, dropping sole-`authority` from a registered sender, and §4's new override rule 5. New gate: `npm run test:falsepos` — and note why it had to exist: `test:corpus` only ever ran the rules engine. |
+| D20 fix | 2026-08-30 | **Exhibition latency + cancellation.** `pickTier` no longer auto-selects `max` (it was promoting any roomy-buffer device to Qwen2.5-3B, against §8.1); `max` is now Qwen2.5-1.5B and the 3B moved to `CEILING_PROBES`; `max_tokens` 700 → 500; cold-load ceiling 900s → 480s. `App` owns an `AbortController` and leaving `/check` genuinely cancels — the effect is on `path`, not the back arrow, because Android's back button fires `popstate`. Check has a Cancel button. Listen's deep run aborts as well as being disowned. Fixed a live defect the gate found: `withTimeout` dropped an *already*-aborted external signal. New gate: `npm run test:cancel`. **Half of P10 is now done** (abort propagation + cancel); the triple-tap failsafe and the `cloud_unavailable` note are what remain. |
 | P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 
 ---
 
 ## §12 · Test and QA plan
+
+### Two false-positive gates, and you need both (D21)
+
+`npm run test:corpus` runs the corpus through `analyzeWithRules` — the
+deterministic engine alone. `npm run test:falsepos` runs it through the full
+`analyze()` orchestrator — rules + model + fusion — against stub engines, so it
+needs no weights and no network.
+
+**The second exists because the first cannot fail on an LLM defect.** A real SBI
+debit alert was reported from the phone as "This is a scam" while `test:corpus`
+was green, and it was green correctly: the rules engine returns `safe` at 0.00
+for that message and always did. Everything that went wrong lived downstream of
+the component the gate measured. A gate that measures a component rather than the
+product will report health right up until a user shows you a photograph.
 
 ### The corpus
 
@@ -2679,6 +2771,11 @@ Supersedes the earlier working assumption of "0.5B only". A single model forced
 a bad trade between demo latency and demonstrated capability; tiers let us keep
 `standard` safe for the flow and exercise `max` deliberately. 4B remains
 excluded — measured as too slow and too heavy on a phone. See §8.1.
+
+**Amended by D20.** Three tiers, still. But `max` is ≈1.5B rather than ≈3B, and
+— the part that was being violated in code rather than merely relaxed — **no
+device selects `max` for itself**. "Exercise `max` deliberately" means
+deliberately: through the Settings override, never by a buffer-cap reading.
 
 **D8 · The UI is a primary, judged feature, and will be redesigned.**
 Built on an explicit token system, with React Bits for motion components and
@@ -3372,6 +3469,315 @@ into a legitimate one. Seven of its checks fail on the pre-fix build.
 
 It still proves nothing about the iQOO. Listen mode is step 5 of §11's
 on-device session, and the toast either appears there or it does not.
+
+---
+
+### 2026-08-30 - D20 - The default tier is the one a stranger will wait for, and a check can be abandoned
+
+**Amends D7 (frozen). Amends §6's timeout budget and §8.1's tier table.**
+
+Two faults, reported from a real session on the deployed build, and they made
+each other worse.
+
+**Fault 1 — the phone volunteered itself for the stage tier.** §8.1 has said
+since P7 that `standard` is the default and `max` is "deliberately exercised".
+`pickTier` did not implement that. It read the WebGPU buffer cap and returned
+`max` for any device reporting 1 GiB or more, so a laptop-class GPU — and any
+phone with a generous cap — silently selected Qwen2.5-3B. Tapping one of the
+Check screen's own sample messages therefore bought a 2.5 GB download and a 3B
+generation nobody had chosen. Nothing was broken. That is the point: the
+heaviest possible path was the *default* path, and it was reached by consenting
+to nothing.
+
+Capability is not consent. A device being *able* to carry `max` is a reason to
+offer it, not a reason to spend a visitor's first thirty seconds on it. An
+exhibition visitor gives you seconds, and a spinner is not a demo of on-device
+inference — it is indistinguishable from a broken web page.
+
+**Fault 2 — nothing could stop it.** `App` passed `undefined` where `analyze()`
+takes an `AbortSignal`. Every engine honoured the signal; no caller ever sent
+one, and no screen had a Cancel control, so §6's "Cancel is always available and
+genuinely aborts" was true only of the sentence in which it was written.
+
+The consequences were exactly what was reported. Leaving Check left `busy` true,
+so returning showed the same spinner mid-flight, still counting. The generation
+kept running on the GPU for a screen nobody was looking at, so opening Listen or
+starting a second check queued behind a dead one — WebLLM serialises generations
+on its single engine — and looked like a fresh hang. `runId` was already here
+and already correct, but it only stops a stale result being *shown*; it has no
+way to stop the work.
+
+**Decided.**
+
+1. **`pickTier` never returns `max`, on any hardware.** It answers one narrowed
+   question — is this device weak enough that even `standard` is a bad idea —
+   and returns `low` or `standard`. `max` is reachable only through
+   `setPreferredTier`: the Settings override D7 always promised, plus
+   `/dev/local`'s picker. D7's three tiers are unchanged; which one a device
+   *reaches on its own* is what changed.
+
+2. **`max` is Qwen2.5-1.5B-Instruct, not Qwen2.5-3B.** D7 excluded 4B as
+   measured-too-slow. 2.5 GB of weights was inside that letter and outside its
+   spirit: `max` is the tier a person stands in front of, so it is bounded by
+   what a person will wait for, not by what the device could survive. The 1.5B
+   keeps the model family the JSON contract was proved against, at ~65% of the
+   weights and well under half the decode work, and is still visibly heavier
+   than `standard` — which is the whole reason the tier exists. Qwen2.5-3B moves
+   to `CEILING_PROBES`, where an unproven candidate belongs; it is the better
+   analyst and `/dev/llm` can still load it.
+
+3. **The signal is wired, end to end.** `App` owns an `AbortController` per run
+   and passes its signal to `analyze()`. Leaving `/check` cancels — via an
+   effect on `path`, not a handler on the back arrow, because Android's back
+   button fires `popstate` and never reaches `navigate()`. A second submit
+   aborts the first rather than queueing behind it. Listen mode's deep analysis
+   gets the same treatment: D19's `runGenRef` disowned a stale generation but
+   left it running, and it is now bumped and aborted together.
+
+4. **Check has a Cancel button.** Quiet, below the progress note, and it
+   genuinely aborts. A wait a person cannot end is not proof of work; it is a
+   hang with a good explanation. This closes half of P10's exit criterion.
+
+5. **`max_tokens` is 500, per §8.1.** It had drifted to 700. The largest real
+   answer in the corpus lands near 350, so the rest bought only a longer worst
+   case — and on a phone the worst case is the one someone is standing through.
+   It is exported as `MAX_TOKENS` so a gate can assert it, because nothing
+   noticed the drift.
+
+6. **The cold-load ceiling is 8 minutes, down from 15.** Fifteen was chosen for
+   a 2.5 GB `max` download that is no longer automatic. A ceiling nobody can
+   reach is indistinguishable from no ceiling to the person watching it.
+
+**A defect the gate found while being written.** `withTimeout` forwarded an
+external abort with a listener only. An abort that has *already* happened fires
+no event, so a pre-cancelled analysis dropped the cancellation silently and ran
+its engine for the full budget. This is the ordinary case, not an edge one — it
+is what a second submit and a cancel-then-resubmit both look like. Fixed by
+checking `external.aborted` before subscribing.
+
+**What did not change.** Fallback stays silent (D2): a cancelled analysis
+resolves with the deterministic result like any other engine that did not
+answer, and the user is shown no error. The tier count, the tier names and the
+user's right to override them are D7, untouched. Cancelling a check does **not**
+cancel the model download — the download is shared, one caller leaving must not
+throw away weights the device has nearly finished paying for, and the offline
+beat (§13) depends on those weights arriving.
+
+**Gate:** `npm run test:cancel`. It proves no plausible device auto-selects
+`max`, that every tier is a model this WebLLM build actually carries, that the
+generation and timeout budgets stay within §8.1, and — against fake detectors,
+so it runs without downloading weights — that an analysis cancelled before or
+during flight reaches the engine's signal, stops, and still resolves with a
+valid result. It also reads `App.tsx` and `Check.tsx` to confirm the signal is
+wired and the Cancel control exists, because the whole failure was a contract
+that every layer honoured except the one that had to start it.
+
+**Still unproven on the phone.** These are latency and lifecycle changes and the
+numbers that matter come from the iQOO. §8.1's measurement table is still empty
+and §11's on-device session is still the thing to do next.
+
+---
+
+### 2026-08-30 - D21 - The scan gets a voice, and danger needs corroboration
+
+**Amends §4 (frozen: adds override rule 5), §7 (frozen: `RuleBriefing`), §12
+(the gate now runs the shipping pipeline). Amends D15.**
+
+**Reported from the phone.** The Check screen's own third sample — a real SBI
+transaction alert from the registered header `VM-SBIINB` — came back as **"This
+is a scam"**, with the bank's signature and its published fraud-reporting number
+highlighted on screen as the evidence:
+
+> *Not you? Call 18001111109.* — quoted as `extraction`
+> *SBI* — quoted as `authority`
+
+§11 already states the standard this falls below: "a model that flags the real
+SBI debit alert is worse than no model."
+
+#### What was actually wrong
+
+The rules engine was never wrong. It returns `safe` at confidence **0.00** for
+this message, and its own explanation reads "Nothing here pressures you or asks
+for anything sensitive, and it came from a registered business sender." It has
+always done so. Four separate defects sat downstream of it.
+
+**1. The briefing told the model half the truth.** `toBriefing` mapped
+`result.tactics` and nothing else. For this message the entire briefing handed
+to the LLM was:
+
+> A separate keyword scan already ran on this message and found possible signs
+> of: authority (matched: "SBI")
+
+The same scan had just matched four legitimacy markers — `Do not share OTP`,
+`debited from A/c`, `Avl Bal`, `18001111109` — and concluded `safe`. None of
+that crossed the boundary. We handed a 1B model one incriminating detail about
+a legitimate message, withheld everything that argued the other way, and it
+convicted. That is not briefing a model; it is leading one.
+
+**2. A confidence of 0 cannot express disagreement.** `fuseConfidence` is
+`llm + 0.85·rules·(1 − llm)` — monotone increasing in `rules`. The rules engine
+can only ever *add*. Its strongest possible statement about a legitimate message
+is `0.00`, which contributes exactly nothing, so the fused confidence *is* the
+LLM's confidence. "I found nothing" and "I found four separate signs this is
+genuine" were the same number.
+
+**3. Nothing screened what the model invented.** §8.3 describes the
+false-positive defence as negatives "subtracted BEFORE the presence check, so a
+genuine bank message never registers extraction at all". That defence only ever
+applied to the rules engine's *own* tactics. `mergeTactics` then unioned the
+LLM's tactics in with no scrutiny whatever — so a model asserting `extraction`
+on a message whose extraction subtotal is deeply negative walked straight past a
+defence built precisely to stop it.
+
+**4. `danger` had no corroboration requirement, and D15 said it did.** D15
+re-centred fusion on the LLM and recorded that "the real protection against a
+wrong LLM moved to `findAuditGap` and the §4 override rules". Neither provided
+it. `findAuditGap` only detects tactics the LLM *omitted*, never ones it
+*invented*. §4's rules 1-3 only raise; the one lowering rule needs an empty
+finding set, which an inventive model never leaves. The DLT header — §5.5's
+highest-signal check — appears in the code only in the raising direction
+(`sender.risk === 'high'`); `kind === 'dlt_header'` lowered nothing.
+
+Measured, not theorised: with one over-eager model, **all 19 legitimate corpus
+messages reached `danger`**, and the sender made no difference to any of them.
+
+**5. And the gate could not see any of it.** `test:corpus` calls
+`analyzeWithRules` and nothing else. §12 calls the false-positive gate "the
+metric that actually matters", and it was measuring a component that was never
+wrong, while the path that ships — rules + LLM + fusion — was ungated.
+
+#### Decided
+
+1. **The briefing carries the whole reading.** `RuleBriefing` gains
+   `legitimacyMarkers` and `assessment`. The model is now told what the scan
+   found *for* the message as well as against it, and what it concluded, and is
+   told explicitly that an institution named in a message that genuinely came
+   from that institution is not impersonating anyone, and that a published
+   helpline is not an ask.
+
+2. **The LLM's tactics are screened against the scan** (`screenLlmTactics`). A
+   tactic whose deterministic subtotal is negative — the scan found the
+   *opposite*, not merely nothing — is dropped before merging. The same test the
+   rules engine already applies to itself, applied symmetrically.
+
+3. **Corroborated identity** (`screenCorroboratedIdentity`). §5 defines
+   `authority` as pretending to be an institution "in order to borrow their
+   power". A message arriving through that institution's registered TRAI header
+   and naming it is not borrowing anything. So authority-from-a-registered-sender
+   is not a finding *on its own* — it survives whenever any other tactic
+   survives, because a scam pushed through a misused header is real (§5.5).
+
+4. **§4 override rule 5 — corroboration for danger.** "This is a scam. Do not
+   reply. Do not send money or codes." must not rest on one engine's unsupported
+   reading. When the deterministic engine concluded `safe`, confidence is capped
+   just below the danger threshold unless one of three things holds:
+   - the sender is high-risk **and** the scan itself found the authority claim
+     (§5.5's impersonation mismatch, established deterministically at both ends);
+   - the scan matched **no** legitimacy markers **and** the model located a
+     concrete `extraction` with evidence quoted verbatim — the novel-scam
+     capability D12 and D15 exist for;
+   - (trivially) the scan did not conclude `safe`.
+
+   **Silence is not disagreement.** That distinction is the heart of the rule and
+   it is corpus-backed: all 21 corpus scams match zero legitimacy markers, while
+   12 of 19 legitimate messages match at least one. A scan that found nothing is
+   not contradicting the model; a scan that found four legitimacy markers is.
+
+   **Expressed as a cap on confidence, not on the verdict.** `validateResult`
+   enforces `verdict === decideVerdict(confidence, tactics, sender)` — the
+   verdict is a pure function of those three, which is what keeps the three
+   engines agreeing (§4, §6). Lowering the verdict while leaving the confidence
+   alone broke that invariant, and every fused result began failing validation.
+   Capping the confidence keeps one source of truth and says the honest thing.
+
+5. **The gate now runs the pipeline that ships.** `npm run test:falsepos`.
+
+#### What this deliberately does not do
+
+It is **not** "trust the registered header", which §5.5 forbids outright:
+"a scam message that reaches the user through a real header is exactly the case
+where our text analysis has to still work." Nothing here can clear a message
+that still has a surviving tactic. `test:falsepos` re-sends all 21 corpus scams
+through `VM-SBIINB` and requires every one of them to still be caught.
+
+#### The cost, stated plainly
+
+A `danger` verdict now needs more than a confident model. Where the scan is
+silent and the model finds only that the *tone* is suspicious — no located ask,
+no high-risk sender with a real authority claim — the verdict is `caution`
+("Something's off here. Check before you act.") rather than `danger`. The user
+still gets the warning, both tactic cards, the highlighted evidence and the
+predicted next lines; they do not get the red headline.
+
+That is the right trade in this direction. §12 makes the false-positive gate the
+metric that matters, and a wrongly-calmed user can still read the caution screen,
+while a wrongly-alarmed one has been told their bank is defrauding them.
+
+#### Gate
+
+`npm run test:falsepos`, four groups:
+
+1. The reported message with the model that got it wrong, reconstructed from the
+   screenshot — must come back `safe`, with neither tactic on the card.
+2. All 19 legitimate corpus messages against a deliberately over-eager model —
+   none may reach `danger`. **All 19 failed before this entry.**
+3. All 21 corpus scams re-sent through a registered header, and again with their
+   real senders — none may be softened. This is what stops the fix being "trust
+   the header", and it passed before the fix as well as after, which is the point.
+4. The boundary itself: an ordinary message between friends that a model finds
+   vaguely suspicious is capped to `caution`; a novel Hinglish scam where the
+   model locates the ask still reaches `danger`.
+
+#### Defect 1 is now measured, not asserted
+
+The first version of this entry said a stub could not prove the briefing fix and
+that it needed the phone. It did not: the same shared prompt drives the cloud
+engine, so the question was answerable against a live model immediately. Same
+message, same system prompt, three runs each, `google/gemini-2.5-flash-lite`, on
+the genuine SBI debit alert from `VM-SBIINB`:
+
+| Briefing sent | Confidence | Tactics returned |
+|---|---|---|
+| none (control) | 0.10 | none |
+| **old, one-sided** | **0.30** | **authority, urgency, extraction** |
+| new, both halves (D21) | 0.05 | none |
+
+The old briefing did not merely fail to help. **It talked a correct model into a
+wrong answer** — the control run shows the model reads this message fine on its
+own. And note the mechanism: the confidence never reached the `danger`
+threshold. Three tactics did. §4 override rule 2 forces `danger` on three
+distinct tactics *regardless of confidence*, so a 0.30 reading became "This is a
+scam" on a real bank message.
+
+#### The same bug was shipped twice, because the prompt exists twice
+
+`api/analyze.ts` is a hand-maintained duplicate of `src/detector/prompt.ts` —
+the serverless function cannot import from `src/`, so `SYSTEM_PROMPT` and the
+three rendering functions are written out twice, with a comment on each saying
+"kept in sync by hand".
+
+They were not. D21 rewrote `renderBriefing` in `prompt.ts` and left the copy in
+`api/` untouched, so for one revision the on-device engine got the corrected
+briefing and the cloud engine kept receiving the one that causes the false
+positive. D20's `max_tokens` change had already drifted the same way: 500 in
+`local.ts`, still 700 in `api/`.
+
+Both copies are now aligned, and the endpoint no longer drops a briefing that
+carries only legitimacy markers — which is precisely the briefing that prevents
+this false positive, and which its `briefing.tactics.length > 0` guard had been
+discarding.
+
+**A comment asking a human to remember is not a mechanism.** `npm run
+test:cloud` group 1 compares the two copies directly — system prompt, tactic
+guide, voice note, all three renderers, and the token budget. Reverting
+`api/analyze.ts` to its pre-fix state fails seven of its checks.
+
+#### Still unverified on the phone
+
+The on-device engine's own round trip. The prompt is now proved correct against
+a real model through the cloud path, and the structural defences are proved by
+`test:falsepos`, but nobody has yet watched WebLLM produce this on the iQOO.
+Step 6 of §11's on-device session.
 
 ---
 

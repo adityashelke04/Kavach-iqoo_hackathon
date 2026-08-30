@@ -255,7 +255,8 @@ assert('resultFromLlm rejects negative confidence', caughtContract)
 // -------------------------------------------------------------
 console.log('\n--- 5. Fusion & Invariants ---')
 
-const rulesRes = analyzeWithRules({ text: 'Dear Customer, your SBI account will be blocked within 24 hours. Update KYC immediately.' })
+const deepInput = { text: 'Dear Customer, your SBI account will be blocked within 24 hours. Update KYC immediately.' }
+const rulesRes = analyzeWithRules(deepInput)
 const llmRes = resultFromLlm(JSON.stringify({
   confidence: 0.9,
   tactics: [{ name: 'extraction', evidence: ['Update KYC'], note: 'Asks to update KYC' }],
@@ -268,7 +269,7 @@ const llmRes = resultFromLlm(JSON.stringify({
   latencyMs: 800
 })
 
-const fused = fuse({ rules: rulesRes, llm: llmRes })
+const fused = fuse({ rules: rulesRes, llm: llmRes, input: deepInput })
 assert('fuse creates valid DetectionResult', fused.verdict === 'danger')
 assert('fuse merges tactics without duplicates', new Set(fused.tactics.map(t=>t.name)).size === fused.tactics.length)
 assert('fuse confidence is >= rules confidence', fused.confidence >= rulesRes.confidence)
@@ -317,8 +318,11 @@ assert('pickTier on Android 128MB ceiling selects "standard"', tierAndroidCeilin
 const tierLowMemory = pickTier({ maxStorageBufferBindingSize: 256 * 1024 * 1024, deviceMemoryGB: 3 })
 assert('pickTier on low memory device (<4GB) selects "low"', tierLowMemory === 'low')
 
+// D20: capability is not consent. A roomy buffer cap no longer promotes a
+// device to the stage tier on its own — `max` is reachable only through the
+// Settings override (`setPreferredTier`). See scripts/test-cancel.mjs.
 const tierDesktopGpu = pickTier({ maxStorageBufferBindingSize: 2048 * 1024 * 1024, deviceMemoryGB: 16 })
-assert('pickTier on high-end desktop WebGPU selects "max"', tierDesktopGpu === 'max')
+assert('pickTier on high-end desktop WebGPU stays on "standard" (D20)', tierDesktopGpu === 'standard')
 
 // -------------------------------------------------------------
 // SUMMARY

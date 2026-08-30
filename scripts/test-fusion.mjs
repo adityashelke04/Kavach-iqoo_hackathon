@@ -291,13 +291,40 @@ group('buildUserPrompt — briefing and reconsideration (D15)')
 }
 
 {
-  const briefing = { tactics: [{ name: 'extraction', matchedPhrases: ['share the OTP'] }] }
+  const briefing = {
+    tactics: [{ name: 'extraction', matchedPhrases: ['share the OTP'] }],
+    legitimacyMarkers: [],
+    assessment: 'has-concerns',
+  }
   const withBriefing = buildUserPrompt({ text: 'hello', channel: 'text', senderFact: null, briefing })
   check(withBriefing.includes('share the OTP'), 'a briefed matched phrase is included verbatim')
   check(withBriefing.includes('extraction'), 'the briefed tactic name is included')
   check(
-    renderBriefing(briefing).includes('confirm, refine, or add'),
+    renderBriefing(briefing).includes('confirm, refine, or correct'),
     'the briefing text instructs the model to read for itself, not just repeat the scan',
+  )
+}
+
+{
+  // D21: the briefing carries the scan's legitimacy findings too. Sending only
+  // the incriminating half is what produced the reported false positive.
+  const briefing = {
+    tactics: [{ name: 'authority', matchedPhrases: ['SBI'] }],
+    legitimacyMarkers: ['Do not share OTP', 'Avl Bal', '18001111109'],
+    assessment: 'looks-legitimate',
+  }
+  const text = renderBriefing(briefing)
+  check(text.includes('Avl Bal'), 'a matched legitimacy marker reaches the model')
+  check(text.includes('18001111109'), 'so does the published helpline number')
+  check(
+    text.includes('looks legitimate'),
+    "the scan's own conclusion is stated, so the model knows when it is disagreeing",
+  )
+  check(
+    !renderBriefing({ tactics: [{ name: 'authority', matchedPhrases: ['SBI'] }] }).includes(
+      'undefined',
+    ),
+    'a pre-D21 briefing shape still renders rather than throwing (§6)',
   )
 }
 
@@ -407,7 +434,7 @@ group('fuse — end to end')
     },
     novel,
   )
-  const fused = fuse({ rules, llm })
+  const fused = fuse({ rules, llm, input: novel })
   validateResult(fused)
   check(fused.verdict === 'danger', `a novel scam rules missed is caught by fusion`, `rules said ${rules.verdict}, fused ${fused.verdict}`)
   check(
@@ -436,7 +463,7 @@ group('fuse — end to end')
     scam,
     PERSONAL,
   )
-  const fused = fuse({ rules, llm })
+  const fused = fuse({ rules, llm, input: scam })
   check(rules.verdict === 'danger', 'rules alone calls the KYC scam danger')
   check(
     fused.tactics.some((t) => t.name === 'urgency' || t.name === 'extraction'),
@@ -467,7 +494,7 @@ group('fuse — end to end')
     legit,
     REGISTERED,
   )
-  const fused = fuse({ rules, llm })
+  const fused = fuse({ rules, llm, input: legit })
   check(fused.verdict === 'safe', 'a real bank SMS stays safe through fusion', `got ${fused.verdict}`)
   check(fused.tactics.length === 0 || fused.verdict === 'safe', 'no danger verdict on a registered-sender alert')
 }
@@ -490,7 +517,7 @@ group('fuse — end to end')
     scam,
     PERSONAL,
   )
-  const fused = fuse({ rules, llm })
+  const fused = fuse({ rules, llm, input: scam })
   let valid = true
   try {
     validateResult(fused)

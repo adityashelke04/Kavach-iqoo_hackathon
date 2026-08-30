@@ -1,5 +1,5 @@
 import { MODELS, type Tier, type ModelSpec } from '../detector/models.ts'
-import { onModelProgress, resolveTier, type ModelProgress } from '../detector/local.ts'
+import { onModelProgress, activeTier, type ModelProgress } from '../detector/local.ts'
 
 export interface DeviceTelemetry {
   isSecureContext: boolean
@@ -64,7 +64,9 @@ export async function getDeviceTelemetry(): Promise<DeviceTelemetry> {
     }
   }
 
-  const tier = await resolveTier()
+  // `activeTier`, not `resolveTier`: this panel reports what the phone is
+  // doing, and a pinned or already-loaded tier is what it is doing (D20).
+  const tier = await activeTier()
   const model = MODELS[tier]
 
   const offlineCapable = typeof navigator !== 'undefined' && 'serviceWorker' in navigator

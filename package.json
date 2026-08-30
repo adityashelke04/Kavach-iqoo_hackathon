@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test:corpus": "node scripts/test-corpus.mjs",
+    "test:falsepos": "node scripts/test-falsepos.mjs",
+    "test:cloud": "node scripts/test-cloud.mjs",
     "test:smoke": "node scripts/smoke.mjs",
     "test:mobile": "node scripts/mobile-check.mjs",
     "test:fusion": "node scripts/test-fusion.mjs",
@@ -18,6 +20,7 @@
     "test:report": "node scripts/test-report.mjs",
     "test:predict": "node scripts/test-predict.mjs",
     "test:local": "node scripts/test-local.mjs",
+    "test:cancel": "node scripts/test-cancel.mjs",
     "test:listen": "node scripts/test-listen.mjs",
     "build:apk": "node scripts/build-apk.mjs",
     "install:apk": "powershell -ExecutionPolicy Bypass -File ./scripts/install-apk.ps1"

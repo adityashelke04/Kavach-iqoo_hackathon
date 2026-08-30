@@ -37,6 +37,17 @@ export interface ModelProgress {
 
 type ProgressListener = (p: ModelProgress) => void
 
+/**
+ * §8.1: "enough for the JSON, tight enough to stay fast."
+ *
+ * Exported so a gate can assert it, because it had drifted to 700 and nothing
+ * noticed. The largest real answer in the corpus — four tactics, each with
+ * evidence phrases and a note — lands around 350 tokens; the rest was buying a
+ * longer worst case, and on a phone the worst case is the one a visitor stands
+ * through.
+ */
+export const MAX_TOKENS = 500
+
 interface MlcEngine {
   chat: {
     completions: {
@@ -274,6 +285,26 @@ export async function getEngine(tier?: Tier): Promise<MlcEngine> {
  * token, and timing that out would throw away a nearly-complete download along
  * with the on-device claim it exists to support.
  */
+/**
+ * The tier that is actually in play: what is loaded, else what has been pinned,
+ * else what this device would choose for itself.
+ *
+ * `resolveTier()` answers a different question — "what would this device pick
+ * from scratch" — and callers wanting a *label* kept reaching for it and
+ * getting an answer that disagreed with the model in memory. The Check screen
+ * named one model while another generated, which is a bad thing for a screen
+ * whose entire job is an honest account of what the phone is doing (§9).
+ */
+export async function activeTier(): Promise<Tier> {
+  if (loadedModelId) {
+    const found = (Object.keys(MODELS) as Tier[]).find(
+      (t) => MODELS[t].modelId === loadedModelId,
+    )
+    if (found) return found
+  }
+  return preferredTier ?? (await resolveTier())
+}
+
 export function isModelLoaded(): boolean {
   // Deliberately not `enginePromise !== null`: that is also true for the whole
   // duration of a download, which is precisely the case this has to separate.
@@ -315,7 +346,18 @@ export const localDetector: Detector = {
 
   async detect(input: DetectionInput, signal: AbortSignal): Promise<DetectionResult> {
     const startedAt = Date.now()
+
+    // The load is the long part of a cold call — minutes, not seconds — so it
+    // is also the part a user is most likely to walk away from. `getEngine`
+    // deliberately takes no signal (the download is shared, and one caller
+    // leaving must not cancel it for everyone else, or throw away weights the
+    // device has nearly finished paying for). What must not happen is what
+    // happened before D20: the caller leaves, the download finishes some
+    // minutes later, and this function calmly starts generating for a screen
+    // nobody is looking at — on the same GPU the next check needs.
+    if (signal.aborted) throw new Error('aborted')
     const engine = await getEngine()
+    if (signal.aborted) throw new Error('aborted')
 
     // Deterministic and pure, so this is the same SenderSignal the
     // orchestrator computed (D9, §7).
@@ -341,7 +383,7 @@ export const localDetector: Detector = {
           },
         ],
         temperature: 0,
-        max_tokens: 700,
+        max_tokens: MAX_TOKENS,
         response_format: { type: 'json_object' },
       })
 

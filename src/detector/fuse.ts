@@ -1,6 +1,14 @@
-import type { DetectionResult, Evidence, Tactic, TacticName } from './types.ts'
-import { decideVerdict } from './verdict.ts'
+import type {
+  DetectionInput,
+  DetectionResult,
+  Evidence,
+  SenderSignal,
+  Tactic,
+  TacticName,
+} from './types.ts'
+import { capUncorroborated, decideVerdict } from './verdict.ts'
 import { validateResult } from './validate.ts'
+import { scanDeterministically } from './rules.ts'
 
 /**
  * Fusion — SPEC.md §6, decision D12.
@@ -124,9 +132,95 @@ export function mergeTactics(
   return [...byName.values()]
 }
 
+/**
+ * Drop the LLM tactics the deterministic scan actively contradicts — D21.
+ *
+ * §8.3 describes the false-positive defence as negatives "subtracted BEFORE the
+ * presence check, so a genuine bank message never registers extraction at all".
+ * That defence was only ever applied to the rules engine's *own* tactics.
+ * `mergeTactics` then unioned the LLM's tactics in with no scrutiny at all, so
+ * a model asserting `extraction` on a message whose extraction score is deeply
+ * negative sailed straight past a defence built precisely to stop it.
+ *
+ * That is how a real SBI debit alert was reported as "This is a scam", with the
+ * bank's published fraud-reporting line — "Not you? Call 18001111109." — quoted
+ * on screen as the evidence of extraction. The scan had already matched that
+ * number as a legitimacy marker and scored extraction below zero.
+ *
+ * Two screens, both deterministic, both narrow:
+ *
+ * 1. **Contradicted tactic.** The scan's subtotal for this tactic is negative:
+ *    it did not merely fail to find the tactic, it found the opposite. The
+ *    same test the rules engine applies to itself, applied symmetrically.
+ *
+ * 2. **Corroborated identity.** `authority` means, per §5, pretending to be an
+ *    institution "in order to borrow their power". A message arriving through a
+ *    registered TRAI header and naming that institution is not borrowing
+ *    anything — it is the institution, verified by the envelope (§5.5). So
+ *    authority-from-a-registered-sender is not a finding *on its own*. It
+ *    survives whenever any other tactic survives, because a scam pushed through
+ *    a misused header is real (§5.5) and there the identity claim is genuine
+ *    context.
+ *
+ * This is not "trust the header", which §5.5 forbids. Nothing here can clear a
+ * message that still has a surviving tactic, and `test:falsepos` re-sends every
+ * corpus scam through `VM-SBIINB` to prove it.
+ */
+export function screenLlmTactics(
+  llmTactics: readonly Tactic[],
+  input: DetectionInput,
+): Tactic[] {
+  if (llmTactics.length === 0) return []
+  const { subtotals } = scanDeterministically(input)
+  return llmTactics.filter((t) => (subtotals[t.name] ?? 0) >= 0)
+}
+
+/**
+ * Screen 2 — corroborated identity (D21).
+ *
+ * Applied to the *merged* finding set, because it is a statement about what
+ * `authority` means rather than about which engine said it. The rules engine
+ * registers `authority` on a bare institution name by design — §4's
+ * impersonation-mismatch rule depends on it registering — so "SBI" in a genuine
+ * SBI message becomes a tactic on the card no matter who asserted it.
+ *
+ * §5 defines authority as pretending to be an institution "in order to borrow
+ * their power". A message arriving through that institution's registered TRAI
+ * header and naming it is not borrowing anything; the envelope corroborates the
+ * claim (§5.5). There is nothing to warn a reader about, and §4's rule 4 says
+ * we never show a verdict we cannot justify on screen — a card reading "this
+ * claims to come from an official body" about a message that genuinely came
+ * from that official body is the opposite of informative.
+ *
+ * Narrow on purpose: it fires only when `authority` is the *sole* surviving
+ * finding. A scam pushed through a misused header keeps its urgency, isolation
+ * or extraction, so it keeps its authority card too, and stays a scam. §5.5
+ * requires exactly that, and `test:falsepos` re-sends every corpus scam through
+ * `VM-SBIINB` to hold it.
+ */
+export function screenCorroboratedIdentity(
+  tactics: readonly Tactic[],
+  sender: SenderSignal,
+): Tactic[] {
+  if (sender.kind !== 'dlt_header') return [...tactics]
+  if (tactics.length === 1 && tactics[0]!.name === 'authority') return []
+  return [...tactics]
+}
+
 export interface FusionInput {
   rules: DetectionResult
   llm: DetectionResult
+  /**
+   * The message being analysed, so fusion can re-run the deterministic scan and
+   * screen the LLM's tactics against it (D21).
+   *
+   * **Required, deliberately.** It was optional for one revision, defaulting to
+   * "screen nothing" — which is the exact shape of the bug D20 fixed elsewhere:
+   * a safety contract that every layer honours except the one that has to
+   * supply it. An omitted argument must not be able to silently switch off the
+   * false-positive defence.
+   */
+  input: DetectionInput
 }
 
 /**
@@ -137,9 +231,30 @@ export interface FusionInput {
  * finding set exactly as they do to a single engine. Nothing downstream can
  * tell that two engines ran, which is the point of the seam (§6).
  */
-export function fuse({ rules, llm }: FusionInput): DetectionResult {
-  const tactics = mergeTactics(rules.tactics, llm.tactics)
-  const confidence = fuseConfidence(rules.confidence, llm.confidence)
+export function fuse({ rules, llm, input }: FusionInput): DetectionResult {
+  // The LLM's findings are screened against the deterministic scan before they
+  // are merged (D21). The rules engine's own tactics are not screened — they
+  // already passed this test to exist.
+  const llmTactics = screenLlmTactics(llm.tactics, input)
+
+  const merged = mergeTactics(rules.tactics, llmTactics)
+  const tactics = screenCorroboratedIdentity(merged, rules.senderSignal)
+
+  // §4 override rule 5 (D21): a danger verdict needs more than one engine's
+  // unsupported reading. Only fusion can see whether the two agreed.
+  const scan = scanDeterministically(input)
+  const confidence = capUncorroborated(
+    fuseConfidence(rules.confidence, llm.confidence),
+    rules.senderSignal,
+    {
+      verdict: rules.verdict,
+      foundAuthority: rules.tactics.some((t) => t.name === 'authority'),
+      foundLegitimacyMarkers: scan.legitimacyMarkers.length > 0,
+      locatedConcreteAsk: tactics.some(
+        (t) => t.name === 'extraction' && t.evidence.some((e) => e.start !== -1),
+      ),
+    },
+  )
 
   // The sender is a deterministic fact, identical in both inputs (D9).
   const senderSignal = rules.senderSignal
@@ -148,7 +263,7 @@ export function fuse({ rules, llm }: FusionInput): DetectionResult {
   // rules engine found nothing and the LLM found the scam, the rules copy says
   // "nothing here pressures you" — which would contradict the verdict on screen.
   const rulesFoundSomething = rules.tactics.length > 0
-  const llmFoundMore = llm.tactics.length > rules.tactics.length
+  const llmFoundMore = llmTactics.length > rules.tactics.length
 
   const useLlmProse = !rulesFoundSomething || llmFoundMore
 

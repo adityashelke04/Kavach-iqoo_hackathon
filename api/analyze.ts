@@ -85,6 +85,10 @@ evidence phrases exactly as they appear in the transcript, errors included.
 
 export interface RuleBriefing {
   tactics: { name: string; matchedPhrases: string[] }[]
+  /** Legitimacy markers the same scan matched, verbatim (D21). */
+  legitimacyMarkers?: string[]
+  /** The deterministic engine's own conclusion (D21). */
+  assessment?: 'looks-legitimate' | 'has-concerns'
 }
 
 export interface ReconsiderationPrompt {
@@ -105,16 +109,56 @@ export interface PromptContext {
  * model — never as a verdict, and never with a number (D15). Kept in sync by
  * hand with src/detector/prompt.ts's identical function — this file cannot
  * import from src/ (see the header comment above on Vercel bundling).
+ *
+ * **`npm run test:cloud` asserts that sync, because hand-syncing failed.** D21
+ * rewrote this function in `prompt.ts` and did not rewrite it here, so for one
+ * revision the on-device engine got the full briefing and the cloud engine kept
+ * getting the one-sided one. Measured against the live model, three runs each,
+ * on a genuine SBI debit alert:
+ *
+ *   no briefing  -> confidence 0.10, no tactics
+ *   old briefing -> confidence 0.30, THREE tactics invented
+ *   new briefing -> confidence 0.05, no tactics
+ *
+ * The old briefing did not merely fail to help; it talked a correct model into
+ * a wrong answer. And three tactics trip §4 override rule 2, which forces
+ * `danger` regardless of the confidence — so a 0.30 reading became "This is a
+ * scam" on a real bank message.
  */
 export function renderBriefing(briefing: RuleBriefing): string {
-  const lines = briefing.tactics.map(
-    (t) => `${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+  const parts: string[] = ['A separate keyword scan already ran on this message.']
+
+  if (briefing.tactics.length > 0) {
+    const lines = briefing.tactics.map(
+      (t) => `- ${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+    )
+    parts.push('Possible signs of manipulation it matched:', lines.join('\n'))
+  } else {
+    parts.push('It matched no signs of manipulation.')
+  }
+
+  const markers = briefing.legitimacyMarkers ?? []
+  if (markers.length > 0) {
+    parts.push(
+      'Markers of a genuine message it also matched. These are things real banks, couriers and services say, and scams generally do not:',
+      markers.map((m) => `- "${m}"`).join('\n'),
+    )
+  }
+
+  const assessment = briefing.assessment ?? null
+  if (assessment !== null) {
+    parts.push(
+      assessment === 'looks-legitimate'
+        ? 'Weighing both lists, the scan concluded this message looks legitimate.'
+        : 'Weighing both lists, the scan concluded this message is worth concern.',
+    )
+  }
+
+  parts.push(
+    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or correct it. It can miss a scam written in wording nobody has listed yet, so add anything it missed. It can also match an ordinary phrase in a perfectly normal message, so a match is not proof: an institution named in a message that genuinely came from that institution is not impersonating anyone, and a published helpline the message tells you to call is not the same as a message asking you for a code or a payment.',
   )
-  return [
-    'A separate keyword scan already ran on this message and found possible signs of:',
-    lines.join('; '),
-    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or add to this. Check specifically for anything it would have missed.',
-  ].join('\n')
+
+  return parts.join('\n')
 }
 
 /**
@@ -148,7 +192,13 @@ export function buildUserPrompt({
     parts.push('The sender is unknown. Do not speculate about it.')
   }
 
-  if (briefing && briefing.tactics.length > 0) {
+  // Not `tactics.length > 0`: since D21 a briefing can carry only legitimacy
+  // markers, and that is exactly the case worth sending — it is the one that
+  // stops the model convicting an ordinary bank alert.
+  if (
+    briefing &&
+    (briefing.tactics.length > 0 || (briefing.legitimacyMarkers?.length ?? 0) > 0)
+  ) {
     parts.push(renderBriefing(briefing))
   }
 
@@ -251,7 +301,8 @@ export default async function handler(req: IncomingLike, res: ResponseLike): Pro
       body: JSON.stringify({
         model: process.env['KAVACH_CLOUD_MODEL']?.trim() || DEFAULT_MODEL,
         temperature: 0,
-        max_tokens: 700,
+        // 500, matching §8.1 and the on-device engine's MAX_TOKENS (D20).
+        max_tokens: 500,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },

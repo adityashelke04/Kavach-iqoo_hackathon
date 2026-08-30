@@ -56,9 +56,17 @@ export const ENGINE_TIMEOUTS = {
  *
  * So a cold call gets a much larger budget. This is not a licence to hang: the
  * Check screen shows the download honestly with a progress bar (§10.6), and
- * Cancel is always available and genuinely aborts.
+ * Cancel is always available and genuinely aborts — which, as of D20, is finally
+ * true. It was written here while `App` was passing `undefined` for the signal
+ * and no Cancel control existed on any screen, so the sentence describing the
+ * escape hatch was the only place the escape hatch existed.
+ *
+ * Fifteen minutes was the old figure and it was chosen for the 2.5 GB `max`
+ * tier that D20 stopped selecting automatically. `standard` is a third of that
+ * download, and a ceiling nobody can reach is indistinguishable from no ceiling
+ * at all to the person watching it.
  */
-export const LOCAL_COLD_LOAD_TIMEOUT_MS = 900_000
+export const LOCAL_COLD_LOAD_TIMEOUT_MS = 480_000
 
 const LLM_ENGINES: Record<Exclude<EnginePreference, 'none'>, Detector> = {
   local: localDetector,
@@ -75,7 +83,16 @@ function withTimeout(
   const timer = setTimeout(() => controller.abort(), ms)
 
   const forward = () => controller.abort()
-  external?.addEventListener('abort', forward, { once: true })
+
+  // An abort that has *already* happened fires no event, so a listener alone
+  // silently drops it and the engine runs its full budget for a caller that is
+  // long gone. Found by `test:cancel`: a pre-cancelled analysis took the fake
+  // engine's whole five seconds and generated an answer for nobody. This is the
+  // ordinary case, not an edge one — a second check submitted while the first
+  // is in flight aborts the old signal, and Check's own cancel path can land
+  // between a submit and the engine being reached.
+  if (external?.aborted) controller.abort()
+  else external?.addEventListener('abort', forward, { once: true })
 
   return {
     signal: controller.signal,
@@ -94,7 +111,11 @@ async function runOnce(
 ): Promise<DetectionResult | null> {
   const { signal, done } = withTimeout(budgetMs, external)
   try {
+    // Nothing below is worth doing for a run that is already cancelled, and
+    // `isAvailable()` on the local engine touches the GPU adapter.
+    if (signal.aborted) return null
     if (!(await engine.isAvailable())) return null
+    if (signal.aborted) return null
     return validateResult(await engine.detect(input, signal))
   } catch (err) {
     console.info(`[kavach] ${engine.id} engine did not answer (${(err as Error).message}) — continuing`)
@@ -129,7 +150,9 @@ export async function analyze(
 
   const engine = engineOverride?.[preference] ?? LLM_ENGINES[preference]
   const budgets = ENGINE_TIMEOUTS[preference]
-  const briefing = toBriefing(rules)
+  // `input` is passed so the briefing carries the legitimacy markers too, not
+  // only the incriminating half of the scan (D21).
+  const briefing = toBriefing(rules, input)
 
   // A cold on-device call is mostly download, not inference — budget for that
   // rather than abandoning a nearly-complete one. Warm calls, and every cloud
@@ -184,7 +207,7 @@ export async function analyze(
   let result = rules
   if (llm) {
     try {
-      result = fuse({ rules, llm })
+      result = fuse({ rules, llm, input })
     } catch (err) {
       // A merge that cannot satisfy §7 is a bug in fusion, not something to
       // show a user. The rules answer is always valid.

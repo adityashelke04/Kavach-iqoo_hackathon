@@ -64,12 +64,22 @@ const EXAMPLES: Example[] = [
 export function Check({
   onSubmit,
   onBack,
+  onCancel,
   busy,
   phase,
 }: {
   /** The orchestrator runs in App and resolves once, with the final result (D15). */
   onSubmit: (input: DetectionInput) => void
   onBack: () => void
+  /**
+   * Abandons the analysis in flight and returns to the composer (D20, P10).
+   *
+   * §10.6 described the wait as the proof of work, and §6 called Cancel
+   * "always available" — but there was no way to stop one, on this screen or
+   * anywhere else. A wait a person cannot end is not a demonstration of
+   * anything; it is a hang with a good explanation.
+   */
+  onCancel: () => void
   busy: boolean
   /** null before a phase is known, or once analysis has finished (D15). */
   phase: AnalysisPhase | null
@@ -106,6 +116,9 @@ export function Check({
     }
 
     startedAt.current = Date.now()
+    // `getDeviceTelemetry` reads the *active* tier since D20, so this line now
+    // names the model that is generating rather than the one this device would
+    // have picked from scratch.
     void getDeviceTelemetry().then((t) => setModelLabel(`${t.model.label} (${t.tier})`))
 
     const id = setInterval(() => {
@@ -239,6 +252,10 @@ export function Check({
                 <p className="working__note">{copy.analyzing_downloading_note}</p>
               </>
             )}
+
+            <button type="button" className="btn btn--ghost working__cancel" onClick={onCancel}>
+              {copy.cta_cancel}
+            </button>
           </div>
         ) : (
           <>
