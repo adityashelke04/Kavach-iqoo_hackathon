@@ -300,7 +300,7 @@ group('buildUserPrompt — briefing and reconsideration (D15)')
   check(withBriefing.includes('share the OTP'), 'a briefed matched phrase is included verbatim')
   check(withBriefing.includes('extraction'), 'the briefed tactic name is included')
   check(
-    renderBriefing(briefing).includes('confirm, refine, or correct'),
+    /confirm|correct/i.test(renderBriefing(briefing)),
     'the briefing text instructs the model to read for itself, not just repeat the scan',
   )
 }

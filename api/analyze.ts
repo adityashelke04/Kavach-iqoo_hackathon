@@ -12,71 +12,41 @@ const MAX_CHARS = 4000
 const UPSTREAM_TIMEOUT_MS = 12_000
 
 export const TACTIC_GUIDE = `
-- authority: pretends to be a bank, the police, a court, a government office,
-  a telecom operator or a delivery company, in order to borrow their power.
-- urgency: manufactures a deadline or a threatened loss so the reader acts
-  before checking. "within 24 hours", "account will be blocked", "final notice".
-- isolation: tries to stop the reader checking with anyone else. "do not tell
-  your family", "stay on the line", "this is confidential", "do not visit the
-  branch".
-- extraction: asks for the thing the scam actually wants — an OTP, a PIN, a
-  CVV, card details, a UPI payment, a fee, or the installation of a
-  screen-sharing app such as AnyDesk or TeamViewer.
+authority - poses as a bank, police, court, government, telecom or courier.
+urgency - a deadline or threatened loss, to stop you checking.
+isolation - tells you to tell nobody, stay on the line, keep it secret.
+extraction - wants an OTP, PIN, CVV, card, UPI payment, fee, or an AnyDesk-type app.
 `.trim()
 
 export const SYSTEM_PROMPT = `
-You analyse messages received by people in India and decide whether they are
-scams. You are one of two engines; a deterministic rules engine runs alongside
-you, so report what you actually observe rather than trying to be decisive.
+You judge whether a message received in India is a scam. A keyword scanner runs
+alongside you; confirm or correct it.
 
-Return ONLY a JSON object. No prose, no markdown, no code fence.
-
+Reply with ONLY this JSON object, nothing else:
 {
-  "confidence": <number 0-1, how strongly this looks like a scam>,
-  "tactics": [
-    {
-      "name": "authority" | "urgency" | "isolation" | "extraction",
-      "evidence": ["<phrase copied EXACTLY from the message>", ...],
-      "note": "<one plain sentence about this tactic in this message>"
-    }
-  ],
-  "explanation": "<1-2 plain sentences on why, or why it looks fine>",
-  "nextMove": "<one sentence: what the sender wants the reader to do next>"
+  "confidence": 0.0-1.0,
+  "tactics": [{"name":"authority|urgency|isolation|extraction","evidence":["exact quote"],"note":"<=12 words"}],
+  "explanation": "<=30 words",
+  "nextMove": "<=15 words"
 }
 
-The four tactics, and nothing else:
+The four tactics, and no others:
 ${TACTIC_GUIDE}
 
-Rules you must follow:
-
-1. Every string in "evidence" must be copied character-for-character from the
-   message. Do not paraphrase, re-case, fix spelling or trim words. A phrase
-   that cannot be found in the message verbatim cannot be highlighted, and an
-   unhighlightable claim is worth less to the reader than no claim.
-2. Only include a tactic you can support with at least one evidence phrase.
-3. Do not comment on who sent the message. You are told the sender's type as a
-   fact; it has already been checked against India's DLT sender registry.
-4. Write "explanation" and "nextMove" for a frightened adult with no technical
-   background. No jargon: not "phishing", "social engineering", "threat
-   vector", "credential harvesting". Say what is happening in ordinary words.
-5. "confidence" must be a decimal between 0 and 1, such as 0.15 or 0.9. Never
-   a percentage, never a rating out of 5 or 10. A value outside 0-1 makes the
-   whole response unusable and it is discarded.
-6. Never state a confidence score, a percentage or a rating in "explanation",
-   "nextMove" or a tactic's "note" — that judgment belongs only in the
-   "confidence" field above. A concrete fact already in the message, such as
-   an amount the scam is asking for, may still appear in plain prose when it
-   helps the reader understand what is being asked of them.
-7. Ordinary legitimate messages exist and are common: transaction alerts,
-   delivery updates, OTP notifications from a real bank, appointment reminders,
-   promotions. For these, return an empty "tactics" array and a low confidence.
-   A real bank SMS almost always contains the words "do not share your OTP with
-   anyone" — that is the bank protecting the reader, not a scam extracting
-   anything. Flagging these is the single most damaging mistake you can make.
-8. Be brief. This runs on the reader's own phone, and every extra word is time
-   a frightened person spends watching a spinner. "note": at most 12 words.
-   "explanation": at most 30 words. "nextMove": at most 15 words. Do not repeat
-   the message back — they can already see it.
+Rules:
+1. Every evidence string must be copied character-for-character from the message. Never paraphrase. If you cannot quote it, leave it out.
+2. No tactic without at least one quote.
+3. Never judge the sender. You are told what it is; that is already verified.
+4. Plain words, for a frightened adult. No jargon, no "phishing".
+5. confidence is a decimal 0-1, never a percentage or a rating.
+6. Never put a score or percentage in any text field.
+7. Ordinary messages are common and must come back with "tactics": [] and low confidence: transaction alerts, deliveries, ride and delivery OTPs, reminders, offers. Specifically, none of these is a scam signal:
+   - "do not share your OTP" - a bank protecting you.
+   - being told to share an OTP with your own driver or delivery partner at handover.
+   - a card or account alert telling you to report an unrecognised charge on the institution's own published number, even if it says "immediately".
+   - an institution named in a message that genuinely came from that institution - that is not impersonation.
+   Wrongly flagging a real bank, ride or delivery SMS is the worst mistake you can make.
+8. Be brief. This runs on the reader's phone and every word is time they wait.
 `.trim()
 
 export const VOICE_NOTE = `
@@ -130,22 +100,23 @@ export interface PromptContext {
  * scam" on a real bank message.
  */
 export function renderBriefing(briefing: RuleBriefing): string {
-  const parts: string[] = ['A separate keyword scan already ran on this message.']
+  const parts: string[] = []
 
   if (briefing.tactics.length > 0) {
-    const lines = briefing.tactics.map(
-      (t) => `- ${t.name} (matched: ${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`,
+    parts.push(
+      'Scan flagged: ' +
+        briefing.tactics
+          .map((t) => `${t.name} (${t.matchedPhrases.map((p) => `"${p}"`).join(', ')})`)
+          .join('; '),
     )
-    parts.push('Possible signs of manipulation it matched:', lines.join('\n'))
   } else {
-    parts.push('It matched no signs of manipulation.')
+    parts.push('Scan flagged nothing.')
   }
 
   const markers = briefing.legitimacyMarkers ?? []
   if (markers.length > 0) {
     parts.push(
-      'Markers of a genuine message it also matched. These are things real banks, couriers and services say, and scams generally do not:',
-      markers.map((m) => `- "${m}"`).join('\n'),
+      'Scan also matched genuine-message markers: ' + markers.map((m) => `"${m}"`).join(', '),
     )
   }
 
@@ -153,15 +124,12 @@ export function renderBriefing(briefing: RuleBriefing): string {
   if (assessment !== null) {
     parts.push(
       assessment === 'looks-legitimate'
-        ? 'Weighing both lists, the scan concluded this message looks legitimate.'
-        : 'Weighing both lists, the scan concluded this message is worth concern.',
+        ? 'Scan concluded: looks legitimate.'
+        : 'Scan concluded: worth concern.',
     )
   }
 
-  parts.push(
-    'It cannot read meaning, only match known phrases — read the message yourself and confirm, refine, or correct it. It can miss a scam written in wording nobody has listed yet, so add anything it missed. It can also match an ordinary phrase in a perfectly normal message, so a match is not proof: an institution named in a message that genuinely came from that institution is not impersonating anyone, and a published helpline the message tells you to call is not the same as a message asking you for a code or a payment.',
-  )
-
+  parts.push('It matches phrases, not meaning. Confirm, correct, or add what it missed.')
   return parts.join('\n')
 }
 
