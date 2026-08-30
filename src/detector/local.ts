@@ -90,7 +90,19 @@ interface MlcEngine {
         temperature?: number
         max_tokens?: number
         response_format?: { type: string }
-      }): Promise<{ choices: { message?: { content?: string } }[] }>
+      }): Promise<{
+        choices: { message?: { content?: string } }[]
+        /** MLC reports real prefill/decode rates here. See the log in `detect`. */
+        usage?: {
+          prompt_tokens?: number
+          completion_tokens?: number
+          extra?: {
+            prefill_tokens_per_s?: number
+            decode_tokens_per_s?: number
+            time_to_first_token_s?: number
+          }
+        }
+      }>
     }
   }
   interruptGenerate?: () => void
@@ -472,6 +484,29 @@ export const localDetector: Detector = {
       if (generationTimedOut) {
         throw new Error(
           `on-device generation exceeded ${GENERATION_TIMEOUT_MS}ms — falling back`,
+        )
+      }
+
+      /**
+       * The numbers that decide what to optimise — D22.
+       *
+       * MLC reports prefill and decode rates separately, and they answer a
+       * question guesswork kept getting wrong. On the iQOO the dev spike showed
+       * 6.1 tokens/second of *decode*, while a real check sends ~1340 tokens of
+       * *prefill* — so if prefill runs anywhere near decode speed, the prompt is
+       * the whole cost and shrinking the model would be the wrong fix.
+       *
+       * `console.info`, like every other engine number (§8.3): useful to us,
+       * never shown to a user.
+       */
+      const u = completion.usage
+      if (u?.extra) {
+        console.info(
+          `[kavach] on-device: prefill ${u.prompt_tokens ?? '?'} tok @ ` +
+            `${u.extra.prefill_tokens_per_s?.toFixed(1) ?? '?'} tok/s, ` +
+            `decode ${u.completion_tokens ?? '?'} tok @ ` +
+            `${u.extra.decode_tokens_per_s?.toFixed(1) ?? '?'} tok/s, ` +
+            `first token after ${u.extra.time_to_first_token_s?.toFixed(1) ?? '?'}s`,
         )
       }
 
