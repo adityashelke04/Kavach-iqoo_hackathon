@@ -23,7 +23,8 @@
     "test:cancel": "node scripts/test-cancel.mjs",
     "test:listen": "node scripts/test-listen.mjs",
     "build:apk": "node scripts/build-apk.mjs",
-    "install:apk": "powershell -ExecutionPolicy Bypass -File ./scripts/install-apk.ps1"
+    "install:apk": "powershell -ExecutionPolicy Bypass -File ./scripts/install-apk.ps1",
+    "test:transcript": "node scripts/test-transcript.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-genai": "^0.10.29",

@@ -78,6 +78,11 @@ npm run test:listen   # Listen mode microphone lifecycle: nothing else holds a
                       # capture stream when recognition starts, restarts back
                       # off and give up, and a stopped call cannot follow you
                       # to the next one (D19)
+npm run test:transcript # the transcript ledger: Android streams revisions, not
+                      # deltas, so a word said once was printed many times. Drives
+                      # the real event shapes (cumulative results, resultIndex
+                      # pinned at 0, re-fired and revised finals, a mid-call
+                      # restart) and asserts every word appears exactly once (D23)
 npm run test:cancel   # exhibition latency + cancellation: no device auto-picks
                       # the heavy tier, every tier is a real WebLLM model, and a
                       # check cancelled before or during flight actually stops
@@ -121,11 +126,26 @@ Listen interrupt mid-call. It is silent when nothing matches — never widen a
 playbook into a catch-all to raise coverage, and never let one fire on a
 legitimate message. `test:predict` guards both.
 
-Listen mode's microphone lifecycle was rebuilt under D19 — read it before
-touching `Listen.tsx`. The rule is one line: **exactly one thing on that screen
-opens the microphone at a time.** Do not reintroduce a `getUserMedia` capture to
-drive the equalizer; that is what made Android report "Chrome is currently
-recording audio". `test:listen` guards it.
+Listen mode has been rebuilt twice, and both rules are one line each.
+
+**D19 — exactly one thing on that screen opens the microphone at a time.** Do
+not reintroduce a `getUserMedia` capture to drive the equalizer; that is what
+made Android report "Chrome is currently recording audio".
+
+**D23 — exactly one thing appends to the transcript, and it commits each result
+once.** Words said once were being printed several times over. Android's
+recogniser streams *revisions*, not deltas: `results` is cumulative, finals are
+re-fired and revised after the fact, and `resultIndex` comes back as 0 on every
+event. `src/listen/transcript.ts` (`TranscriptLedger`) is now the **only** writer
+— live path and preset path both — and it reads `resultIndex` only to ignore it.
+Do not append to the transcript anywhere else, do not restore the
+`e.resultIndex` slice, and do not lower the overlap trim to one word: people say
+"no no", and deleting the second one changes what the caller said in the text
+the detector then scores. This is not cosmetic — `rules.ts` scores per
+occurrence, so a repeated sentence goes `safe` @ 0.10 to `danger` @ 0.89 on
+recogniser stutter alone. `test:listen` and `test:transcript` guard it; note
+that `test:listen` was green through the whole bug because its fake recogniser
+only ever emitted a one-entry list at index 0.
 
 Speed on the phone is **D22**. Three rules came out of it. The reconsideration
 pass costs a whole second generation, so it is gated by `worthReconsidering` —

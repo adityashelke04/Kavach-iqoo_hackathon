@@ -2472,6 +2472,7 @@ session needs to know that is not already in this document.
 | D21 cloud | 2026-08-30 | **The cloud engine was still shipping the bug.** `api/analyze.ts` duplicates the prompt by hand (it cannot import from `src/`) and D21 had only fixed the `src/` copy — as D20 had only fixed `src/`'s `max_tokens`. Verified live: the old briefing made the model invent three tactics on a genuine SBI alert, and §4 rule 2 turns three tactics into `danger` whatever the confidence. Both copies aligned; the endpoint no longer drops a markers-only briefing. New gate `npm run test:cloud` compares the two copies and runs a live round trip when `OPENROUTER_API_KEY` is present (skipped cleanly without one). Cloud endpoint confirmed live and correct on production. |
 | D21 fix | 2026-08-30 | **False positive on a real bank SMS.** Reported from the phone: the Check screen's own SBI sample, from `VM-SBIINB`, came back "This is a scam". Rules was right all along (`safe` @ 0.00); four defects sat downstream. `toBriefing` sent the model only the incriminating half of the scan; `fuseConfidence` is monotone in `rules`, so a 0 could not express disagreement; `mergeTactics` unioned the model's tactics in unscreened, bypassing §8.3's negative defence; and `danger` had no corroboration requirement, so **all 19 legitimate corpus messages** reached danger against one over-eager model. Fixed by carrying both halves of the scan into the briefing, screening LLM tactics against the deterministic subtotals, dropping sole-`authority` from a registered sender, and §4's new override rule 5. New gate: `npm run test:falsepos` — and note why it had to exist: `test:corpus` only ever ran the rules engine. |
 | D20 fix | 2026-08-30 | **Exhibition latency + cancellation.** `pickTier` no longer auto-selects `max` (it was promoting any roomy-buffer device to Qwen2.5-3B, against §8.1); `max` is now Qwen2.5-1.5B and the 3B moved to `CEILING_PROBES`; `max_tokens` 700 → 500; cold-load ceiling 900s → 480s. `App` owns an `AbortController` and leaving `/check` genuinely cancels — the effect is on `path`, not the back arrow, because Android's back button fires `popstate`. Check has a Cancel button. Listen's deep run aborts as well as being disowned. Fixed a live defect the gate found: `withTimeout` dropped an *already*-aborted external signal. New gate: `npm run test:cancel`. **Half of P10 is now done** (abort propagation + cancel); the triple-tap failsafe and the `cloud_unavailable` note are what remain. |
+| D23 fix | 2026-08-30 | **Listen printed words that were said once several times over.** Reported from the phone. Android's recogniser streams *revisions*, not deltas — cumulative `results`, finals re-fired, and `resultIndex` reported as 0 on every event — and `onresult` appended "every final from `resultIndex` onward" into an append-only string, so five spoken words came out as twenty-eight. Three more paths fed the same append site: `onend` never detached its handlers before restarting (D19 fixed that only in `teardownRecognition`), `start()` was re-entrant across its permission await so a double tap ran two recognisers into one transcript, and session-scoped result indices were treated as global. **Not cosmetic:** `rules.ts` scores per occurrence, so repetition reads as emphasis — *"madam there is a case against your aadhaar number"* goes `safe` @ 0.10 → `danger` @ 0.89 when said three times. New `src/listen/transcript.ts` (`TranscriptLedger`) is now the only writer; `resultIndex` is read and deliberately ignored. `test:listen`'s fake could not express any of this — it emitted a one-entry list at index 0 — so it now models the real platform. New gate: `npm run test:transcript`. Both gates confirmed failing against the pre-fix code. |
 | P3 | done | Cloud engine + fusion. `api/analyze.ts` holds the OpenRouter key server-side; the browser only ever calls our own origin. `prompt.ts` and `llm.ts` are shared with the on-device engine, so P7 inherits a proven JSON contract and only has to solve the runtime. `npm run test:fusion` covers it. Set OPENROUTER_API_KEY (and optionally KAVACH_CLOUD_MODEL) in Vercel or the cloud engine stays silently unavailable, which is a working state, not a broken one. |
 | | | |
 
@@ -2594,6 +2595,14 @@ Time is short; these three earn their keep:
   the input** for every corpus message, including overlapping and nested spans.
 - `verdict.ts` — the §4 threshold table plus all four override rules, including
   the impersonation mismatch with and without a sender present.
+- `listen/transcript.ts` — the ledger, against the shapes Android actually
+  sends: a cumulative `results` list, `resultIndex` pinned at 0, a final
+  re-fired unchanged, a final *revised* after it was committed, and a session
+  restart mid-utterance. **Assert the transcript equals the words spoken,
+  exactly once each.** Gated by `npm run test:transcript` (D23). The overlap
+  trim gets its own cases in both directions: it must drop a repeated tail, and
+  it must leave a genuinely doubled word ("no no", "haan haan") alone — a
+  deleted word changes what the caller said in the text the detector scores.
 
 ### On-device manual matrix
 
@@ -3908,6 +3917,113 @@ localabstract:chrome_devtools_remote` with the app in the foreground, which is
 how to get real numbers next time; note that a **backgrounded or locked** tab
 has its WebGPU work frozen, so a wait that spans a screen lock is not a
 measurement of anything.
+
+---
+
+### 2026-08-30 - D23 - A word said once must be written once
+
+**Extends D19. Touches `src/screens/Listen.tsx`, adds `src/listen/transcript.ts`.**
+
+Reported from the phone: Listen mode printed several copies of words that were
+said once, and the paragraph got worse the longer the call ran.
+
+It reads like a rendering bug. It is a **detection** bug wearing a rendering
+bug's clothes.
+
+**The recogniser streams revisions, not deltas.** On Android,
+`webkitSpeechRecognition` is brokered to Google Speech Services, and that
+service does not hand over a clean delta per event. `results` is cumulative for
+the whole session; an utterance is re-delivered as it is refined, marked
+`isFinal` at each step; the same settled result is re-fired unchanged; and on
+several Chrome builds `resultIndex` comes back as **0 on every event** whatever
+actually changed.
+
+`onresult` was written against the API as documented rather than the API as
+shipped. It appended every `isFinal` result from `e.resultIndex` onward into an
+**append-only string** — no record of what had already been committed, and
+nothing that could ever take a word back. Driven by the real event shapes, five
+spoken words come out as:
+
+```
+hello hello sir hello sir i hello sir i am hello sir i am calling
+hello sir i am calling hello sir i am calling
+```
+
+Three more paths fed the same append site, each capable of doubling the
+transcript on its own:
+
+**1 · The restart path never detached its handlers.** D19 fixed exactly this
+class of defect in `teardownRecognition` and left `onend` alone. Android ends
+the session after each utterance whatever `continuous` says, so `onend` runs
+constantly; it nulled `recRef.current` but left `rec.onresult` attached, and a
+buffered final flushed by the ended session still wrote words the *restarted*
+session had already committed.
+
+**2 · `start()` was re-entrant.** It awaits the permission prompt and then
+`MIC_RELEASE_MS` before it builds a recogniser, and nothing guarded that window.
+A double tap, or a start racing a restart timer, left **two live recognisers
+writing into one transcript** — every word exactly twice.
+
+**3 · Result indices are session-scoped and were treated as global.** A restart
+begins numbering at 0 again, and index 0 of the new session has nothing to do
+with index 0 of the old one.
+
+#### Why it is not cosmetic
+
+`rules.ts` adds `m.w` **per occurrence**, and `dedupe()` drops only *overlapping*
+spans — never a phrase repeated further along. So repetition is scored as
+emphasis. Measured, through the shipped rules engine:
+
+| Said once | Said 2–3x by a stuttering recogniser |
+| --- | --- |
+| *"madam there is a case against your aadhaar number"* — `safe` @ 0.10 | `danger` @ 0.89 |
+| *"your account has been suspended please listen carefully"* — `caution` @ 0.67 | `danger` @ 0.89 |
+
+A sentence crossed two verdict boundaries because the microphone stuttered. That
+is D21's failure — a legitimate message called a scam — reached by a different
+road, and it would have fired on a demo stage against a real courier.
+
+#### What changed
+
+The rule is the twin of D19's, and just as short: **exactly one thing appends to
+the transcript, and it commits each result once.**
+
+- **`src/listen/transcript.ts` — `TranscriptLedger`.** Pure: no React, no DOM, no
+  recogniser. It holds the committed text plus what each result index has
+  contributed, and it is the only thing allowed to grow the transcript. The live
+  path and the preset path both go through it, so they cannot drift apart.
+- **`resultIndex` is read and deliberately ignored.** The ledger walks the whole
+  cumulative list and decides for itself what is new — correct whether the
+  platform reports a truthful index, a stale one, or zero forever. A re-fired
+  final is a no-op; a *revised* final rebuilds rather than appends, because
+  appending a correction cannot remove the words it corrects.
+- **`newSession()` at every restart**, keeping the words and dropping the indices.
+- **`onend` detaches `onresult`/`onerror`/`onend`** before scheduling a restart.
+- **`start()` carries a token.** Only the newest may build a recogniser; `stop()`
+  clears it, which also cancels a start still waiting on the permission prompt.
+- **The overlap trim takes two words minimum, never one.** People say "no no" and
+  "haan haan". A one-word rule deletes the second, silently changing what the
+  caller said in the text the detector then scores. A stray repeated word is a
+  blemish; a deleted word is a lie.
+
+#### The gate, and why `test:listen` was green through all of this
+
+`test:listen`'s fake recogniser only ever emitted a **one-entry list at index
+0**. It could not express a cumulative list, a re-fired final, a regressed
+index, or two live sessions — so the transcript could triple with every check
+passing. A fake that cannot express the bug is not coverage.
+
+- `FakeRecognition` now models the platform: `speakLikeAndroid()` grows an
+  utterance word by word marking each step final, re-fires the settled list, and
+  pins `resultIndex` at 0; `endSession()` ends the session mid-call the way
+  Android does. Two new cases assert that a word said once is written once
+  through a revising recogniser, and that a rapid double tap leaves at most one
+  recogniser live.
+- **New gate `npm run test:transcript`** covers the ledger directly, including
+  the two sentences above going through the rules engine — the gate states in
+  its own output that repetition alone moves the verdict.
+
+Both were confirmed to fail against the pre-fix code before being accepted.
 
 ---
 

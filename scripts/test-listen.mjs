@@ -263,15 +263,77 @@ class FakeRecognition {
     fn(arg);
     return true;
   }
+  /** The recogniser the screen currently has wired up. */
+  static current() {
+    const live = (window.__mic.instances || []).filter((r) => r.onresult);
+    return live[live.length - 1] || null;
+  }
+
+  /** Deliver a cumulative results list, the way the real API does. */
+  static __deliver(rec, list, resultIndex) {
+    const results = { length: list.length };
+    list.forEach((r, i) => {
+      results[i] = { 0: { transcript: r.transcript }, isFinal: !!r.isFinal, length: 1 };
+    });
+    rec.__emit('onresult', { resultIndex, results });
+  }
+
   /** Speak into whichever recogniser is currently wired up. */
   static speak(text, isFinal) {
-    const live = (window.__mic.instances || []).filter((r) => r.onresult);
-    const rec = live[live.length - 1];
+    const rec = FakeRecognition.current();
     if (!rec) return false;
-    rec.__emit('onresult', {
-      resultIndex: 0,
-      results: { length: 1, 0: { 0: { transcript: text }, isFinal: !!isFinal, length: 1 } },
-    });
+    // Session-cumulative, exactly like the platform: previously finalised
+    // results stay in the list and are re-delivered on every event.
+    rec.__session = rec.__session || [];
+    const settled = rec.__session.filter((r) => r.isFinal);
+    const list = [...settled, { transcript: text, isFinal: !!isFinal }];
+    if (isFinal) rec.__session = list;
+    FakeRecognition.__deliver(rec, list, 0);
+    return true;
+  }
+
+  /**
+   * Speak the way Android actually speaks (D23).
+   *
+   * Google Speech Services streams revisions, not deltas. It grows an utterance
+   * word by word marking each step final, re-delivers finals it has already
+   * sent, and — on several Chrome builds — reports resultIndex 0 every time
+   * regardless of what changed. Code that trusted resultIndex as a commit
+   * boundary re-appended words already on screen, which is how one spoken word
+   * became a paragraph of copies.
+   *
+   * speak() above cannot express any of that, which is why this bug shipped
+   * past a green test:listen.
+   */
+  static speakLikeAndroid(text) {
+    const rec = FakeRecognition.current();
+    if (!rec) return false;
+    rec.__session = rec.__session || [];
+    const words = String(text).split(' ');
+    const settled = rec.__session.filter((r) => r.isFinal);
+
+    // 1. Grow it, marked final at every step (the revision case).
+    for (let k = 1; k <= words.length; k++) {
+      FakeRecognition.__deliver(
+        rec,
+        [...settled, { transcript: words.slice(0, k).join(' '), isFinal: true }],
+        0,
+      );
+    }
+    // 2. Re-fire the settled list twice over (the re-delivery case).
+    const done = [...settled, { transcript: text, isFinal: true }];
+    FakeRecognition.__deliver(rec, done, 0);
+    FakeRecognition.__deliver(rec, done, 0);
+    rec.__session = done;
+    return true;
+  }
+
+  /** End the session the way Android does after each utterance. */
+  static endSession() {
+    const rec = FakeRecognition.current();
+    if (!rec) return false;
+    rec.__emit('onend');
+    if (rec.__started) { rec.__started = false; window.__mic.live--; }
     return true;
   }
 }
@@ -407,6 +469,94 @@ check(
   'an abandoned recogniser cannot write into the transcript',
   `a torn-down session still delivered a result (orphan events before=${beforeOrphan})`,
 )
+
+/* == 2b. One word said once is written once (D23) ===========================
+   The reported symptom: a word said once printed several times, worse the
+   longer the call ran. Driven here through the recogniser Android actually is —
+   cumulative results, resultIndex pinned at 0, finals re-delivered, and a
+   session restart in the middle of the call. */
+{
+  await openListen()
+  await evalIn(clickByText('start listening'))
+  await wait(900)
+
+  const LINE_A = 'hello sir i am calling from the head office'
+  const LINE_B = 'please stay on the line for verification'
+
+  await evalIn(`window.__FakeRecognition.speakLikeAndroid(${JSON.stringify(LINE_A)})`)
+  await wait(400)
+  // Android ends the session after an utterance whatever `continuous` says.
+  await evalIn(`window.__FakeRecognition.endSession()`)
+  await waitFor(`window.__mic.live > 0`, 'the recogniser to restart', 8000)
+  await evalIn(`window.__FakeRecognition.speakLikeAndroid(${JSON.stringify(LINE_B)})`)
+  await wait(600)
+
+  const shown = await evalIn(
+    `(document.querySelector('.transcript__body')?.innerText || '')`,
+  )
+  const words = shown.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean)
+  const counts = new Map()
+  for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1)
+
+  // "the" genuinely occurs twice across the two lines; nothing occurs 3 times.
+  const spoken = `${LINE_A} ${LINE_B}`.split(' ')
+  const spokenCounts = new Map()
+  for (const w of spoken) spokenCounts.set(w, (spokenCounts.get(w) ?? 0) + 1)
+
+  const over = [...counts.entries()].filter(([w, n]) => n > (spokenCounts.get(w) ?? 0))
+
+  check(
+    over.length === 0,
+    'a word said once is written once, through a revising recogniser',
+    `repeated beyond what was spoken: ${over
+      .map(([w, n]) => `"${w}" x${n} (spoken x${spokenCounts.get(w) ?? 0})`)
+      .join(', ')}\n        transcript: ${JSON.stringify(shown.slice(0, 240))}`,
+  )
+
+  check(
+    /head office/.test(shown) && /verification/.test(shown),
+    'both utterances survive the session restart',
+    `transcript: ${JSON.stringify(shown.slice(0, 240))}`,
+  )
+
+  await evalIn(clickByText('stop'))
+  await wait(300)
+  await dismissInterrupt()
+}
+
+/* == 2c. A double tap cannot start two recognisers ==========================
+   `start()` awaits the permission prompt and MIC_RELEASE_MS before it builds
+   anything. Nothing used to stop a second call entering that window, and two
+   live recognisers write every word into one transcript twice. */
+{
+  await openListen()
+  await evalIn(`window.__mic.starts = 0; window.__mic.live = 0; window.__mic.instances = []`)
+  // Three taps inside the settle window, faster than a person but the same race.
+  await evalIn(clickByText('start listening'))
+  await evalIn(clickByText('start listening'))
+  await evalIn(clickByText('start listening'))
+  await wait(1400)
+
+  const live = await evalIn('window.__mic.live')
+  check(
+    live <= 1,
+    'a rapid double tap leaves at most one recogniser live',
+    `${live} recognisers running at once — each writes into the same transcript`,
+  )
+
+  await evalIn(`window.__FakeRecognition.speakLikeAndroid('good morning madam')`)
+  await wait(500)
+  const dup = await evalIn(`(document.querySelector('.transcript__body')?.innerText || '')`)
+  check(
+    (dup.toLowerCase().match(/madam/g) || []).length <= 1,
+    'and the word is still written once',
+    `transcript: ${JSON.stringify(dup.slice(0, 200))}`,
+  )
+
+  await evalIn(clickByText('stop'))
+  await wait(300)
+  await dismissInterrupt()
+}
 
 /* == 3. A failing recogniser backs off and gives up ========================= */
 await openListen()

@@ -6,6 +6,7 @@ import { buildSegments, resolveAllEvidence } from '../detector/evidence.ts'
 import { Findings } from '../ui/components/index.tsx'
 import { NextLines } from '../ui/components/NextLines.tsx'
 import { predictNextLines } from '../predict/match.ts'
+import { TranscriptLedger, type ResultLike } from '../listen/transcript.ts'
 import type { Prediction } from '../predict/types.ts'
 import { copy } from '../ui/copy.ts'
 import { AppBar } from '../ui/primitives/index.tsx'
@@ -41,6 +42,14 @@ interface SpeechResult {
   length: number
 }
 interface SpeechEvent {
+  /**
+   * Present, and deliberately unused (D23).
+   *
+   * It is meant to be the index of the first changed result. On Android it is
+   * routinely 0 no matter what changed, and taking it for a commit boundary is
+   * what re-appended words the transcript already held. `TranscriptLedger`
+   * reads the whole list and decides for itself.
+   */
   resultIndex: number
   results: { length: number; [i: number]: SpeechResult }
 }
@@ -331,7 +340,14 @@ export function Listen({
   const lastFastRunAt = useRef(0)
   const lastSlowRunAt = useRef(0)
   const lastRunLen = useRef(0)
-  const transcriptRef = useRef('')
+  /**
+   * The one writer to the transcript (D23).
+   *
+   * It used to be a bare string that every path appended to, which is how a
+   * recogniser that revises its own results filled the paragraph with copies of
+   * words that had been said once.
+   */
+  const ledgerRef = useRef<TranscriptLedger>(new TranscriptLedger())
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const simTimerRef = useRef<number | null>(null)
   const restartTimerRef = useRef<number | null>(null)
@@ -344,6 +360,14 @@ export function Listen({
   const lastVoiceAtRef = useRef(0)
   /** Consecutive failed starts, reset by the first result that arrives. */
   const failureCountRef = useRef(0)
+  /**
+   * Identity of the most recent `start()` (D23).
+   *
+   * `start` is async, so two of them can be in flight at once; only the newest
+   * is allowed to build a recogniser. `stop()` clears it, which also cancels a
+   * start that is still waiting on the permission prompt.
+   */
+  const startTokenRef = useRef<symbol | null>(null)
 
   /**
    * Generation counter for detection runs.
@@ -540,6 +564,9 @@ export function Listen({
 
   const stop = useCallback(() => {
     wantRunning.current = false
+    // Cancels a start still waiting on the permission prompt, so it cannot come
+    // alive after the user has already stopped listening (D23).
+    startTokenRef.current = null
     if (simTimerRef.current !== null) {
       window.clearInterval(simTimerRef.current)
       simTimerRef.current = null
@@ -553,11 +580,24 @@ export function Listen({
     setPhase('stopped')
 
     // Run complete deep analysis over the entire accumulated transcript
-    const fullTranscript = transcriptRef.current.trim()
+    const fullTranscript = ledgerRef.current.text
     if (fullTranscript) void runDetection(fullTranscript, true)
   }, [runDetection, stopAudioMeter, teardownRecognition])
 
   const start = useCallback(async () => {
+    /**
+     * Claim this start, and disown any that was already in flight (D23).
+     *
+     * `start` awaits the permission prompt and then MIC_RELEASE_MS before it
+     * builds a recogniser, and nothing used to stop a second call entering that
+     * window — a double tap while the button still reads "priming", or a start
+     * racing a restart timer that had already fired. Both ended with two live
+     * recognisers writing into one transcript, which prints every word twice.
+     */
+    const token = Symbol('start')
+    startTokenRef.current = token
+    const superseded = () => startTokenRef.current !== token
+
     if (simTimerRef.current !== null) {
       window.clearInterval(simTimerRef.current)
       simTimerRef.current = null
@@ -579,6 +619,7 @@ export function Listen({
     // 1. Take the permission grant, then give the hardware straight back and
     //    let Android settle before the recogniser asks for it.
     const permission = await primeMicPermission()
+    if (superseded()) return
     if (permission === 'denied') {
       wantRunning.current = false
       stopAudioMeter()
@@ -586,9 +627,15 @@ export function Listen({
       return
     }
     await new Promise((r) => setTimeout(r, MIC_RELEASE_MS))
+    if (superseded()) return
 
     // 2. Setup speech recognition lifecycle
     const setupRecognition = () => {
+      // Result indices are session-scoped: the new session starts numbering at
+      // 0 again, and index 0 here has nothing to do with index 0 before it.
+      // Keep the words, drop the indices (D23).
+      ledgerRef.current.newSession()
+
       const rec = new Ctor()
       rec.continuous = true
       rec.interimResults = true
@@ -600,24 +647,23 @@ export function Listen({
         failureCountRef.current = 0
         lastVoiceAtRef.current = Date.now()
 
-        let addition = ''
-        let pending = ''
-        for (let i = e.resultIndex; i < e.results.length; i++) {
+        // Read the whole cumulative list and let the ledger decide what is new.
+        // Slicing from `e.resultIndex` was the bug (D23): Android reports it as
+        // 0 on every event, so every final in the session was re-appended each
+        // time the recogniser spoke.
+        const results: ResultLike[] = []
+        for (let i = 0; i < e.results.length; i++) {
           const r = e.results[i]
           if (!r) continue
-          const chunk = r[0].transcript
-          if (r.isFinal) addition += chunk
-          else pending += chunk
+          results.push({ transcript: r[0].transcript, isFinal: r.isFinal })
         }
+
+        const { text, interim: pending, changed } = ledgerRef.current.absorb(results)
         setInterim(pending)
+        if (changed) setFinalText(text)
 
-        if (addition) {
-          transcriptRef.current = `${transcriptRef.current} ${addition}`.trim()
-          setFinalText(transcriptRef.current)
-        }
-
-        // Active buffer combines finalized transcript and streaming interim text
-        const activeText = `${transcriptRef.current} ${pending}`.trim()
+        // Active buffer combines committed transcript and streaming interim text
+        const activeText = `${text} ${pending}`.trim()
         const buffer = activeText.slice(-WINDOW_CHARS)
         const now = Date.now()
 
@@ -629,7 +675,7 @@ export function Listen({
 
         // Standard-path: Periodic evaluation on buffer growth
         const grewEnough = buffer.length - lastRunLen.current > 15
-        if (addition && now - lastSlowRunAt.current > DEBOUNCE_MS && grewEnough) {
+        if (changed && now - lastSlowRunAt.current > DEBOUNCE_MS && grewEnough) {
           lastSlowRunAt.current = now
           lastRunLen.current = buffer.length
           void runDetection(buffer, false)
@@ -663,6 +709,16 @@ export function Listen({
 
       rec.onend = () => {
         if (recRef.current === rec) recRef.current = null
+
+        // Detach before restarting (D23). D19 got this right for the teardown
+        // path and left the restart path alone: an ended session that later
+        // flushes a buffered final still ran this handler and wrote words the
+        // *restarted* session had already committed. Two sessions, one
+        // transcript, every word twice.
+        rec.onresult = null
+        rec.onerror = null
+        rec.onend = null
+
         if (!wantRunning.current) return
 
         // Let the platform release the microphone before asking for it again,
@@ -673,7 +729,8 @@ export function Listen({
         )
         restartTimerRef.current = window.setTimeout(() => {
           restartTimerRef.current = null
-          if (!wantRunning.current) return
+          // A restart belonging to a superseded start must not resurrect it.
+          if (!wantRunning.current || superseded()) return
           try {
             setupRecognition()
           } catch {
@@ -723,7 +780,7 @@ export function Listen({
     setResult(null)
     setInterrupted(false)
     setAnalyzing(false)
-    transcriptRef.current = ''
+    ledgerRef.current.clear()
     setFinalText('')
     setInterim('')
     lastRunLen.current = 0
@@ -763,17 +820,17 @@ export function Listen({
 
       simTimerRef.current = window.setInterval(() => {
         if (index < words.length) {
-          const chunk = words[index]
+          const chunk = words[index] ?? ''
           index++
-          transcriptRef.current = `${transcriptRef.current} ${chunk}`.trim()
-          setFinalText(transcriptRef.current)
+          const committed = ledgerRef.current.append(chunk)
+          setFinalText(committed)
           setInterim(
             index < words.length
               ? words.slice(index, Math.min(index + 2, words.length)).join(' ')
               : '',
           )
 
-          const buffer = transcriptRef.current.slice(-WINDOW_CHARS)
+          const buffer = ledgerRef.current.text.slice(-WINDOW_CHARS)
           const now = Date.now()
           const grewEnough = buffer.length - lastRunLen.current > 15
           if ((now - lastFastRunAt.current > 400 && grewEnough) || index === words.length) {
